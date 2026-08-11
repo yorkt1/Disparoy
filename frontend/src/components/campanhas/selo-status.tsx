@@ -1,0 +1,80 @@
+import {
+  CheckCircle2,
+  CircleDashed,
+  CirclePause,
+  Clock,
+  Loader2,
+  XCircle,
+} from "lucide-react";
+import { Badge, type TomBadge } from "@/components/ui/primitivos";
+import type { StatusCampanha, StatusCanal, StatusTemplate } from "@disparoy/dominio";
+
+/**
+ * Selos de estado. Cada um leva ÍCONE + TEXTO: a cor nunca é o único canal que
+ * carrega o significado.
+ */
+
+const CAMPANHA: Record<StatusCampanha, { texto: string; tom: TomBadge; icone: React.ReactNode }> = {
+  rascunho: { texto: "Rascunho", tom: "neutro", icone: <CircleDashed className="size-3.5" /> },
+  agendada: { texto: "Agendada", tom: "marca", icone: <Clock className="size-3.5" /> },
+  em_andamento: {
+    texto: "Em andamento",
+    tom: "marca",
+    icone: <Loader2 className="size-3.5 animate-spin" />,
+  },
+  pausada: { texto: "Pausada", tom: "aviso", icone: <CirclePause className="size-3.5" /> },
+  concluida: { texto: "Concluída", tom: "bom", icone: <CheckCircle2 className="size-3.5" /> },
+  falhou: { texto: "Falhou", tom: "critico", icone: <XCircle className="size-3.5" /> },
+};
+
+export function SeloCampanha({ status }: { status: StatusCampanha }) {
+  const c = CAMPANHA[status];
+  return (
+    <Badge tom={c.tom} icone={c.icone}>
+      {c.texto}
+    </Badge>
+  );
+}
+
+const CANAL: Record<StatusCanal, { texto: string; tom: TomBadge; icone: React.ReactNode }> = {
+  conectado: { texto: "Conectado", tom: "bom", icone: <CheckCircle2 className="size-3.5" /> },
+  desconectado: { texto: "Desconectado", tom: "neutro", icone: <XCircle className="size-3.5" /> },
+  aguardando_qr: { texto: "Aguardando QR", tom: "aviso", icone: <Clock className="size-3.5" /> },
+  banido: { texto: "Banido", tom: "critico", icone: <XCircle className="size-3.5" /> },
+};
+
+export function SeloCanal({ status }: { status: StatusCanal }) {
+  const c = CANAL[status];
+  return (
+    <Badge tom={c.tom} icone={c.icone}>
+      {c.texto}
+    </Badge>
+  );
+}
+
+const TEMPLATE: Record<StatusTemplate, { texto: string; tom: TomBadge; icone: React.ReactNode }> = {
+  aprovado: { texto: "Aprovado", tom: "bom", icone: <CheckCircle2 className="size-3.5" /> },
+  pendente: { texto: "Em análise", tom: "aviso", icone: <Clock className="size-3.5" /> },
+  rejeitado: { texto: "Rejeitado", tom: "critico", icone: <XCircle className="size-3.5" /> },
+  pausado: { texto: "Pausado", tom: "serio", icone: <CirclePause className="size-3.5" /> },
+};
+
+export function SeloTemplate({ status }: { status: StatusTemplate }) {
+  const c = TEMPLATE[status];
+  return (
+    <Badge tom={c.tom} icone={c.icone}>
+      {c.texto}
+    </Badge>
+  );
+}
+
+export const ROTULO_CATEGORIA = {
+  marketing: "Marketing",
+  utilidade: "Utilidade",
+  autenticacao: "Autenticação",
+} as const;
+
+export const ROTULO_CONEXAO = {
+  qrcode: "QR Code",
+  api_oficial: "API Oficial",
+} as const;

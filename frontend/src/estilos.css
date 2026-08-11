@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+/* --------------------------------------------------------------------------
+   Tema escuro — único tema do painel, conforme especificação.
+   As cores de série do gráfico vêm de uma rampa sequencial validada para a
+   superfície escura (#1a1a19); status usa a paleta reservada.
+   -------------------------------------------------------------------------- */
+@theme {
+  --color-plano: #0d0d0d;
+  --color-superficie: #1a1a19;
+  --color-superficie-2: #212120;
+  --color-superficie-3: #2a2a28;
+  --color-borda: #2c2c2a;
+  --color-borda-forte: #383835;
+
+  --color-tinta: #ffffff;
+  --color-tinta-2: #c3c2b7;
+  --color-tinta-3: #898781;
+
+  --color-marca: #3987e5;
+  --color-marca-forte: #2a78d6;
+  --color-marca-suave: #1c5cab;
+  --color-marca-tenue: #86b6ef;
+
+  --color-bom: #0ca30c;
+  --color-aviso: #fab219;
+  --color-serio: #ec835a;
+  --color-critico: #d03b3b;
+
+  --color-serie-1: #86b6ef;
+  --color-serie-2: #3987e5;
+  --color-serie-3: #1c5cab;
+  --color-serie-falha: #d03b3b;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --radius-card: 0.75rem;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background-color: var(--color-plano);
+  color: var(--color-tinta);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Foco visível consistente em toda a navegação por teclado. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-marca);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Colunas numéricas alinhadas verticalmente. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-plano);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-borda-forte);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #4a4a46;
+}
+
+/* O seletor nativo de data/hora renderiza escuro no Chromium com isto. */
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
