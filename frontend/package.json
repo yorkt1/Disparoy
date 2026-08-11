@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "//prebuild": "O @disparoy/dominio é consumido pelos arquivos de dist/, que são gitignorados. Num clone limpo (Vercel, CI) eles não existem, e o tsc falha com TS2307 em ~30 arquivos. Compilar aqui garante o build correto mesmo quando só este workspace é construído, sem depender do script da raiz.",
+    "prebuild": "cd ../shared && npm run build",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
@@ -28,5 +30,8 @@
     "typescript": "^5.7.3",
     "vite": "^6.0.11"
   },
-  "description": "Painel administrativo (SPA)"
+  "description": "Painel administrativo (SPA)",
+  "engines": {
+    "node": "22.x"
+  }
 }
