@@ -7,7 +7,18 @@ import { limparSessao, tokenAtual } from "./sessao";
  * responde `{ erro, erros? }`, então o front nunca precisa adivinhar formato.
  */
 
-const BASE = import.meta.env.VITE_API_URL ?? "/api";
+function baseDaApi(): string {
+  const raw = import.meta.env.VITE_API_URL ?? "/api";
+  const semEspaco = raw.trim();
+  if (!semEspaco) return "/api";
+
+  const semBarraFinal = semEspaco.replace(/\/+$/, "");
+  if (semBarraFinal.endsWith("/api")) return semBarraFinal;
+
+  return `${semBarraFinal}/api`;
+}
+
+const BASE = baseDaApi();
 
 export class ErroApi extends Error {
   constructor(
