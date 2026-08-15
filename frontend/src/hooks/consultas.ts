@@ -16,6 +16,7 @@ import type {
   Papel,
   ResumoCampanha,
   Spintax,
+  StatusCampanha,
   Template,
   Usuario,
 } from "@disparoy/dominio";
@@ -259,6 +260,18 @@ export function useVerificarCanal() {
   });
 }
 
+/** Campanhas que dependem do canal — perguntado antes de confirmar a exclusão. */
+export function useVinculosCanal(id: string | null) {
+  return useQuery({
+    queryKey: ["canal-vinculos", id],
+    queryFn: () =>
+      api.get<{ campanhas: { id: string; nome: string; status: StatusCampanha }[] }>(
+        `/canais/${id}/vinculos`,
+      ),
+    enabled: id !== null,
+  });
+}
+
 export function useAjustarCanal() {
   const invalidar = useInvalidar();
   return useMutation({
@@ -278,7 +291,15 @@ export function useAjustarCanal() {
 export function useExcluirCanal() {
   const invalidar = useInvalidar();
   return useMutation({
-    mutationFn: (id: string) => api.delete<{ excluido: string }>(`/canais/${id}`),
+    /**
+     * `forcar` desvincula as campanhas junto.
+     *
+     * Antes a API recusava e mandava "desconecte em vez de excluir" — o canal
+     * ficava para sempre na lista sem saída pelo produto. Agora a tela pergunta
+     * antes, mostrando quais campanhas dependem dele.
+     */
+    mutationFn: (v: { id: string; forcar?: boolean }) =>
+      api.delete<{ excluido: string }>(`/canais/${v.id}${v.forcar ? "?forcar=true" : ""}`),
     onSuccess: () => invalidar("canais"),
   });
 }
