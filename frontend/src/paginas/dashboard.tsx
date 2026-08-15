@@ -15,13 +15,21 @@ import { Carregando, ErroCarregamento, Esqueleto } from "@/components/ui/estados
 import { CartaoMetrica } from "@/components/dashboard/cartao-metrica";
 import { GraficoStatus } from "@/components/charts/grafico-status";
 import { TabelaUltimasCampanhas } from "@/components/dashboard/tabela-ultimas-campanhas";
-import { useCampanhas, useCanais, useMetricas, useSessao } from "@/hooks/consultas";
+import {
+  temCampanhaAndando,
+  useCampanhas,
+  useCanais,
+  useMetricas,
+  useSessao,
+} from "@/hooks/consultas";
 
 export function PaginaDashboard() {
   const sessao = useSessao();
-  const metricas = useMetricas();
   const canais = useCanais();
   const campanhas = useCampanhas({ porPagina: 8 });
+  // As métricas só se atualizam sozinhas quando há disparo acontecendo — quem
+  // sabe disso é a lista de campanhas, carregada logo acima.
+  const metricas = useMetricas(temCampanhaAndando(campanhas.data));
 
   const primeiroNome = sessao.data?.usuario.nome.split(" ")[0] ?? "";
   const conectados = (canais.data ?? []).filter((c) => c.status === "conectado").length;

@@ -23,6 +23,13 @@ const CAMPANHA: Record<StatusCampanha, { texto: string; tom: TomBadge; icone: Re
     icone: <Loader2 className="size-3.5 animate-spin" />,
   },
   pausada: { texto: "Pausada", tom: "aviso", icone: <CirclePause className="size-3.5" /> },
+  // Tom crítico, e não "aviso": pausa automática quase sempre exige alguém
+  // reconectar um QR. Se aparecesse igual à pausa manual, ninguém agiria.
+  pausada_por_canal: {
+    texto: "Pausada pelo sistema",
+    tom: "critico",
+    icone: <CirclePause className="size-3.5" />,
+  },
   concluida: { texto: "Concluída", tom: "bom", icone: <CheckCircle2 className="size-3.5" /> },
   falhou: { texto: "Falhou", tom: "critico", icone: <XCircle className="size-3.5" /> },
 };

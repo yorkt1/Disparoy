@@ -6,6 +6,7 @@ import "./estilos.css";
 import { App } from "./App";
 import { ProvedorAuth } from "./auth/contexto-auth";
 import { ProvedorToast } from "./components/ui/toast";
+import { LimiteErro } from "./components/ui/limite-erro";
 import { ErroApi } from "./lib/api";
 
 const cliente = new QueryClient({
@@ -28,16 +29,21 @@ if (!raiz) throw new Error("Elemento #raiz não encontrado no index.html.");
 
 // O frontend não precisa mais de credencial nenhuma: toda autenticação passa
 // pela API. Se ela estiver fora do ar, o PainelLayout é quem explica.
+// O `LimiteErro` mais externo é a rede final: pega o que quebrar nos próprios
+// provedores ou no roteador, onde o boundary de dentro do painel não alcança.
+// Sem ele, esses casos ainda dariam tela branca.
 createRoot(raiz).render(
   <StrictMode>
-    <QueryClientProvider client={cliente}>
-      <BrowserRouter>
-        <ProvedorAuth>
-          <ProvedorToast>
-            <App />
-          </ProvedorToast>
-        </ProvedorAuth>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <LimiteErro>
+      <QueryClientProvider client={cliente}>
+        <BrowserRouter>
+          <ProvedorAuth>
+            <ProvedorToast>
+              <App />
+            </ProvedorToast>
+          </ProvedorAuth>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </LimiteErro>
   </StrictMode>,
 );

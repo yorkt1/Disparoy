@@ -1,0 +1,51 @@
+# ============================================================================
+# Verificação a cada push e pull request.
+#
+# A Vercel publica direto do `main`. O build dela é o mesmo `npm run build`
+# daqui, então quando este job passa a publicação também passa — e quando ele
+# falha, o erro aparece no pull request em vez de num deploy quebrado.
+# ============================================================================
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Instalar
+        run: npm ci
+
+      # Antes do typecheck: o `@disparoy/dominio` é consumido pelo `dist/`,
+      # que é gitignorado e não existe num clone limpo.
+      - name: Build
+        run: npm run build
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Testes
+        run: npm test
+
+      - name: Nenhum segredo versionado
+        run: |
+          if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -v '\.example$'; then
+            echo "::error::Arquivo .env versionado. Remova do índice e troque as credenciais."
+            exit 1
+          fi

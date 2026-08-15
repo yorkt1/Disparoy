@@ -1,9 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  AmostraFalha,
+  Aviso,
   Campanha,
   Canal,
   Contato,
   ContatoDaCampanha,
+  Diagnostico,
+  Incidente,
   Lista,
   LogAuditoria,
   MetricasDashboard,
@@ -36,6 +40,10 @@ export const chaves = {
   spintax: ["spintax"] as const,
   usuarios: ["usuarios"] as const,
   logs: (f?: unknown) => ["logs", f ?? {}] as const,
+  avisos: ["avisos"] as const,
+  incidentes: ["incidentes"] as const,
+  diagnostico: (dias: number) => ["diagnostico", dias] as const,
+  amostrasFalha: (dias: number, codigo: string) => ["diagnostico", dias, codigo] as const,
 };
 
 export interface EstadoIntegracao {
@@ -63,11 +71,37 @@ export function useEhAdmin(): boolean {
   return useSessao().data?.usuario.papel === "admin";
 }
 
-export function useMetricas() {
+/**
+ * Quanto tempo entre atualizações automáticas enquanto há campanha rodando.
+ *
+ * Casado com o worker: os contadores de entrega são agregados por uma rotina
+ * que roda de minuto em minuto, então buscar mais rápido que isso é tráfego
+ * sem informação nova. 20 s deixa o número aparecer em no máximo ~80 s do
+ * evento real, que é o que se espera de um painel de acompanhamento.
+ */
+const INTERVALO_AO_VIVO = 20_000;
+
+/**
+ * Métricas do dashboard.
+ *
+ * `aoVivo` vem de fora porque a resposta não diz se há campanha rodando — quem
+ * sabe disso é a lista de campanhas, que o dashboard já carrega. Preferi isso a
+ * adicionar um campo na rota de métricas: o tipo `MetricasDashboard` mora no
+ * pacote compartilhado, que está DUPLICADO nos dois repositórios, então cada
+ * campo novo lá vira dois arquivos para manter em sincronia.
+ */
+export function useMetricas(aoVivo = false) {
   return useQuery({
     queryKey: chaves.metricas,
     queryFn: () => api.get<MetricasDashboard>("/campanhas/metricas"),
     staleTime: 15_000,
+    /**
+     * Sem isto o dashboard ficava parado: o operador via a campanha saindo no
+     * WhatsApp e os números congelados, e concluía que o disparo tinha travado.
+     * Fora do disparo, buscar de 20 em 20 s seria tráfego à toa — a aba deste
+     * painel costuma passar o dia aberta.
+     */
+    refetchInterval: aoVivo ? INTERVALO_AO_VIVO : false,
   });
 }
 
@@ -83,7 +117,18 @@ export function useCampanhas(filtros: { porPagina?: number; status?: string } = 
   return useQuery({
     queryKey: chaves.campanhas(filtros),
     queryFn: () => api.get<Paginado<ResumoCampanha>>(`/campanhas?${p}`),
+    // Campanha andando muda de status e de contador sozinha. Sem isto a lista
+    // só mudava com F5, e "em andamento" ficava na tela depois de concluída.
+    refetchInterval: (c) =>
+      (c.state.data?.itens ?? []).some((i) => i.status === "em_andamento")
+        ? INTERVALO_AO_VIVO
+        : false,
   });
+}
+
+/** Há campanha rodando entre as carregadas? Liga a atualização automática. */
+export function temCampanhaAndando(dados: Paginado<ResumoCampanha> | undefined): boolean {
+  return (dados?.itens ?? []).some((c) => c.status === "em_andamento");
 }
 
 export function useCampanha(id: string) {
@@ -344,6 +389,19 @@ export function useAlterarExecucao() {
   });
 }
 
+/**
+ * Troca da própria senha.
+ *
+ * Não invalida cache nenhum: nada do que está na tela depende da senha, e
+ * `/eu` continua devolvendo exatamente os mesmos dados.
+ */
+export function useTrocarSenha() {
+  return useMutation({
+    mutationFn: (dados: { senhaAtual: string; novaSenha: string }) =>
+      api.patch<void>("/sessao/senha", dados),
+  });
+}
+
 /** Sem convite por e-mail: o admin já define a senha do novo acesso. */
 export function useCriarUsuario() {
   const invalidar = useInvalidar();
@@ -360,5 +418,94 @@ export function useAjustarUsuario() {
     mutationFn: ({ id, ...corpo }: { id: string; papel?: Papel; ativo?: boolean; senha?: string }) =>
       api.patch<{ usuario: Usuario }>(`/usuarios/${id}`, corpo),
     onSuccess: () => invalidar("usuarios"),
+  });
+}
+
+// --------------------------------------------------------------------------
+// Avisos
+//
+// A caixa é por perfil e o backend filtra pelo token — não existe parâmetro de
+// usuário aqui de propósito. `refetchInterval` de 30 s porque o disparo tem
+// janela curta: descobrir só na próxima navegação que o canal caiu seria
+// descobrir tarde demais.
+// --------------------------------------------------------------------------
+
+export function useAvisos(incluirLidos = false) {
+  return useQuery({
+    queryKey: [...chaves.avisos, incluirLidos],
+    queryFn: () => api.get<Aviso[]>(`/avisos?incluirLidos=${incluirLidos}`),
+    refetchInterval: 30_000,
+  });
+}
+
+/** Só o número do sininho: leve o bastante para viver no topo de toda tela. */
+export function useContagemAvisos() {
+  return useQuery({
+    queryKey: [...chaves.avisos, "contagem"],
+    queryFn: () => api.get<{ total: number }>("/avisos/contagem"),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useIncidentesAbertos() {
+  return useQuery({
+    queryKey: chaves.incidentes,
+    queryFn: () => api.get<Incidente[]>("/avisos/incidentes"),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useMarcarAvisoLido() {
+  const invalidar = useInvalidar();
+  return useMutation({
+    mutationFn: (id: number) => api.post<{ ok: true }>(`/avisos/${id}/lido`),
+    onSuccess: () => invalidar("avisos"),
+  });
+}
+
+export function useMarcarTodosAvisosLidos() {
+  const invalidar = useInvalidar();
+  return useMutation({
+    mutationFn: () => api.post<{ ok: true }>("/avisos/lidos"),
+    onSuccess: () => invalidar("avisos"),
+  });
+}
+
+export function useArquivarAviso() {
+  const invalidar = useInvalidar();
+  return useMutation({
+    mutationFn: (id: number) => api.post<{ ok: true }>(`/avisos/${id}/arquivar`),
+    onSuccess: () => invalidar("avisos", "incidentes"),
+  });
+}
+
+// --------------------------------------------------------------------------
+// Diagnóstico
+//
+// Sem `refetchInterval`, ao contrário dos avisos: aqui não se acompanha nada ao
+// vivo, se estuda o acumulado. A tela é aberta para decidir se uma regra de
+// classificação precisa mudar, e esse número não muda de trinta em trinta
+// segundos. O `staleTime` alto é o que deixa alternar entre janelas de tempo
+// sem refazer a agregação no banco a cada clique.
+// --------------------------------------------------------------------------
+
+export function useDiagnostico(dias: number) {
+  return useQuery({
+    queryKey: chaves.diagnostico(dias),
+    queryFn: () => api.get<Diagnostico>(`/diagnostico?dias=${dias}`),
+    staleTime: 120_000,
+  });
+}
+
+/** Amostras de um código só. `enabled` porque só carrega quando a linha abre. */
+export function useAmostrasFalha(dias: number, codigo: string | null) {
+  return useQuery({
+    queryKey: chaves.amostrasFalha(dias, codigo ?? ""),
+    queryFn: () =>
+      api.get<AmostraFalha[]>(
+        `/diagnostico/amostras?dias=${dias}&codigo=${encodeURIComponent(codigo ?? "")}`,
+      ),
+    enabled: codigo !== null,
+    staleTime: 120_000,
   });
 }

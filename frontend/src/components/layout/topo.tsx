@@ -5,6 +5,8 @@ import {
   FileText,
   LayoutDashboard,
   Menu,
+  Bell,
+  ScanSearch,
   ScrollText,
   Send,
   Smartphone,
@@ -14,6 +16,7 @@ import {
 import { cn } from "@/lib/formato";
 import type { Papel } from "@disparoy/dominio";
 import { MenuPerfil, type PerfilSessao } from "./menu-perfil";
+import { useContagemAvisos } from "@/hooks/consultas";
 
 interface ItemNav {
   href: string;
@@ -29,6 +32,10 @@ const NAVEGACAO: ItemNav[] = [
   { href: "/contatos", rotulo: "Contatos", icone: Users },
   { href: "/templates", rotulo: "Templates", icone: FileText },
   { href: "/canais", rotulo: "Canais", icone: Smartphone },
+  { href: "/avisos", rotulo: "Avisos", icone: Bell },
+  // Só admin: a resposta carrega o texto cru do gateway, que às vezes traz o
+  // número do destinatário. É material de investigação, como a auditoria.
+  { href: "/diagnostico", rotulo: "Diagnóstico", icone: ScanSearch, somenteAdmin: true },
   { href: "/logs", rotulo: "Logs", icone: ScrollText, somenteAdmin: true },
 ];
 
@@ -38,6 +45,11 @@ export function Topo({ usuario }: { usuario: PerfilSessao }) {
 
   const ativo = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   const visiveis = NAVEGACAO.filter((i) => !i.somenteAdmin || usuario.papel === "admin");
+
+  // Fica no topo de propósito: quando um canal cai, o disparo tem janela de
+  // minutos. Um aviso escondido numa tela que ninguém abre chega tarde.
+  const contagem = useContagemAvisos();
+  const naoLidos = contagem.data?.total ?? 0;
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-borda bg-plano/85 backdrop-blur-md">
@@ -70,6 +82,14 @@ export function Topo({ usuario }: { usuario: PerfilSessao }) {
               >
                 <Icone aria-hidden className="size-4" />
                 {item.rotulo}
+                {item.href === "/avisos" && naoLidos > 0 && (
+                  <span
+                    aria-label={`${naoLidos} avisos não lidos`}
+                    className="ml-0.5 min-w-4 rounded-full bg-critico px-1 text-center text-[11px] font-medium text-white"
+                  >
+                    {naoLidos > 9 ? "9+" : naoLidos}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -118,6 +138,14 @@ export function Topo({ usuario }: { usuario: PerfilSessao }) {
               >
                 <Icone aria-hidden className="size-4" />
                 {item.rotulo}
+                {item.href === "/avisos" && naoLidos > 0 && (
+                  <span
+                    aria-label={`${naoLidos} avisos não lidos`}
+                    className="ml-0.5 min-w-4 rounded-full bg-critico px-1 text-center text-[11px] font-medium text-white"
+                  >
+                    {naoLidos > 9 ? "9+" : naoLidos}
+                  </span>
+                )}
               </Link>
             );
           })}

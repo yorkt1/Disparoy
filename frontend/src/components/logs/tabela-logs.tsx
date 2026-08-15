@@ -35,6 +35,7 @@ const ACOES: Record<AcaoLog, { texto: string; tom: TomBadge }> = {
   "usuario.criado": { texto: "Acesso criado", tom: "marca" },
   "usuario.papel_alterado": { texto: "Papel alterado", tom: "aviso" },
   "usuario.senha_redefinida": { texto: "Senha redefinida", tom: "aviso" },
+  "usuario.senha_alterada": { texto: "Senha alterada pelo próprio", tom: "neutro" },
   "usuario.desativado": { texto: "Acesso desativado", tom: "critico" },
   "usuario.reativado": { texto: "Acesso reativado", tom: "bom" },
 };

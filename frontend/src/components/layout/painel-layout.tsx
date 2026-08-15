@@ -1,7 +1,8 @@
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/auth/contexto-auth";
 import { useSessao } from "@/hooks/consultas";
+import { LimiteErro } from "@/components/ui/limite-erro";
 import { Topo } from "./topo";
 
 /**
@@ -13,6 +14,7 @@ import { Topo } from "./topo";
 export function PainelLayout() {
   const { autenticado } = useAuth();
   const { data, isLoading, error } = useSessao(autenticado);
+  const { pathname } = useLocation();
 
   if (!autenticado) return <Navigate to="/entrar" replace />;
   if (isLoading) return <Carregando />;
@@ -35,7 +37,16 @@ export function PainelLayout() {
     <div className="min-h-dvh">
       <Topo usuario={data.usuario} />
       <main className="mx-auto max-w-[1600px] px-4 pt-20 pb-12 sm:px-6">
-        <Outlet />
+        {/*
+          O boundary fica DENTRO do layout, e não em volta dele: uma tela que
+          quebra não pode levar o topo junto, ou o operador perde a navegação e
+          fica sem caminho de volta a não ser digitar a URL.
+
+          A chave é o pathname — sair da rota quebrada limpa o erro sozinho.
+        */}
+        <LimiteErro chave={pathname}>
+          <Outlet />
+        </LimiteErro>
       </main>
     </div>
   );

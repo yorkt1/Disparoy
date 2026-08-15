@@ -34,7 +34,16 @@ const PaginaTemplates = lazy(() =>
 const PaginaCanais = lazy(() =>
   import("@/paginas/canais").then((m) => ({ default: m.PaginaCanais })),
 );
+const PaginaAvisos = lazy(() =>
+  import("@/paginas/avisos").then((m) => ({ default: m.PaginaAvisos })),
+);
+const PaginaDiagnostico = lazy(() =>
+  import("@/paginas/diagnostico").then((m) => ({ default: m.PaginaDiagnostico })),
+);
 const PaginaLogs = lazy(() => import("@/paginas/logs").then((m) => ({ default: m.PaginaLogs })));
+const PaginaPerfil = lazy(() =>
+  import("@/paginas/perfil").then((m) => ({ default: m.PaginaPerfil })),
+);
 const PaginaConfiguracoes = lazy(() =>
   import("@/paginas/configuracoes").then((m) => ({ default: m.PaginaConfiguracoes })),
 );
@@ -57,7 +66,12 @@ export function App() {
           <Route path="/contatos" element={<PaginaContatos />} />
           <Route path="/templates" element={<PaginaTemplates />} />
           <Route path="/canais" element={<PaginaCanais />} />
+          <Route path="/avisos" element={<PaginaAvisos />} />
+          <Route path="/diagnostico" element={<PaginaDiagnostico />} />
           <Route path="/logs" element={<PaginaLogs />} />
+          {/* O menu de perfil já linkava para cá; sem esta rota o link caía
+              no 404. É também onde se troca a própria senha. */}
+          <Route path="/perfil" element={<PaginaPerfil />} />
           <Route path="/configuracoes" element={<PaginaConfiguracoes />} />
         </Route>
 

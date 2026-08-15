@@ -7,7 +7,7 @@ import {
   CardCorpo,
   Separador,
 } from "@/components/ui/primitivos";
-import { Botao } from "@/components/ui/botao";
+import { Botao, BotaoLink } from "@/components/ui/botao";
 import { Carregando, ErroCarregamento } from "@/components/ui/estados";
 import { useToast } from "@/components/ui/toast";
 import { GraficoStatus } from "@/components/charts/grafico-status";
@@ -44,7 +44,12 @@ export function PaginaDetalheCampanha() {
   
 
   const podePausar = campanha.status === "em_andamento" || campanha.status === "agendada";
-  const podeRetomar = campanha.status === "pausada" || campanha.status === "rascunho";
+  // `pausada_por_canal` entra aqui: o operador reconecta o QR e precisa de um
+  // botão para seguir. Sem isso a campanha ficaria parada sem saída pelo produto.
+  const podeRetomar =
+    campanha.status === "pausada" ||
+    campanha.status === "pausada_por_canal" ||
+    campanha.status === "rascunho";
 
   async function alterar(acao: "pausar" | "retomar") {
     try {
@@ -76,6 +81,10 @@ export function PaginaDetalheCampanha() {
           <ChevronLeft aria-hidden className="size-3.5" />
           Campanhas
         </Link>
+
+        {campanha.status === "pausada_por_canal" && (
+          <FaixaPausaAutomatica motivo={campanha.pausadaMotivo} />
+        )}
 
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
@@ -282,6 +291,38 @@ function ItemDefinicao({
         {rotulo}
       </dt>
       <dd className="tabular text-xs text-tinta">{valor}</dd>
+    </div>
+  );
+}
+
+
+/**
+ * Faixa da pausa automática.
+ *
+ * É a tela que responde à pergunta que o sistema inteiro não sabia responder:
+ * a campanha parou por culpa de quem? O texto vem pronto de `pausada_motivo`,
+ * gravado no momento da pausa e já escrito na língua do operador — a tela não
+ * interpreta código de erro nem compara string.
+ */
+function FaixaPausaAutomatica({ motivo }: { motivo: string | null }) {
+  return (
+    <div
+      role="status"
+      className="mt-3 flex flex-wrap items-start gap-3 rounded-xl border border-critico/35 bg-critico/10 p-4"
+    >
+      <CirclePause aria-hidden className="mt-0.5 size-4 shrink-0 text-critico" />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-tinta">O sistema pausou esta campanha</p>
+        <p className="mt-0.5 text-sm text-tinta-2">
+          {motivo ?? "Motivo não registrado."}
+        </p>
+        <p className="mt-1 text-xs text-tinta-3">
+          Nenhum contato foi perdido: os pendentes voltaram para a fila e ninguém recebe duas vezes.
+        </p>
+      </div>
+      <BotaoLink to="/canais" variante="primario" tamanho="sm">
+        Ver canais
+      </BotaoLink>
     </div>
   );
 }
