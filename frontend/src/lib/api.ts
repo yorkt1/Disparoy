@@ -91,6 +91,64 @@ export async function chamarApi<T>(caminho: string, opcoes: OpcoesRequisicao = {
   return dados as T;
 }
 
+/**
+ * Baixa um arquivo de uma rota autenticada.
+ *
+ * Um `<a download>` não serve: o navegador não manda o header Authorization
+ * numa navegação, e a rota responderia 401. Por isso o arquivo é buscado por
+ * fetch, virado em blob e entregue por um link sintético.
+ *
+ * Devolve o que veio em `X-Total-Contatos` quando existir — o corpo é binário
+ * e não tem onde carregar essa contagem.
+ */
+export async function baixarArquivo(
+  caminho: string,
+  nomePadrao: string,
+): Promise<{ total: number | null }> {
+  const token = tokenAtual();
+  const resposta = await fetch(`${BASE}${caminho}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (!resposta.ok) {
+    if (resposta.status === 401 && token) limparSessao();
+    // O erro vem em JSON mesmo numa rota que normalmente devolve binário.
+    let mensagem = `Erro ${resposta.status}.`;
+    let campos: Record<string, string> | undefined;
+    try {
+      const c = (await resposta.json()) as { erro?: string; erros?: Record<string, string> };
+      mensagem = c?.erro ?? mensagem;
+      campos = c?.erros;
+    } catch {
+      /* resposta sem corpo legível: fica a mensagem genérica */
+    }
+    throw new ErroApi(mensagem, resposta.status, campos);
+  }
+
+  const blob = await resposta.blob();
+  const nome = nomeDoCabecalho(resposta.headers.get("Content-Disposition")) ?? nomePadrao;
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = nome;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // Sem o revoke o blob fica na memória da aba até ela fechar — e uma agenda
+  // grande baixada algumas vezes não é pouca coisa.
+  URL.revokeObjectURL(url);
+
+  const total = resposta.headers.get("X-Total-Contatos");
+  return { total: total === null ? null : Number(total) };
+}
+
+/** `attachment; filename="contatos-gui.xlsx"` -> `contatos-gui.xlsx` */
+function nomeDoCabecalho(cabecalho: string | null): string | null {
+  const m = /filename="?([^";]+)"?/i.exec(cabecalho ?? "");
+  return m?.[1]?.trim() || null;
+}
+
 export const api = {
   get: <T>(caminho: string) => chamarApi<T>(caminho),
   post: <T>(caminho: string, corpo?: unknown) => chamarApi<T>(caminho, { method: "POST", corpo }),

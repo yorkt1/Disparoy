@@ -3,11 +3,17 @@ import {
   CircleDashed,
   CirclePause,
   Clock,
+  HelpCircle,
   Loader2,
   XCircle,
 } from "lucide-react";
 import { Badge, type TomBadge } from "@/components/ui/primitivos";
-import type { StatusCampanha, StatusCanal, StatusTemplate } from "@disparoy/dominio";
+import type {
+  ConfiancaCanal,
+  StatusCampanha,
+  StatusCanal,
+  StatusTemplate,
+} from "@disparoy/dominio";
 
 /**
  * Selos de estado. Cada um leva ÍCONE + TEXTO: a cor nunca é o único canal que
@@ -50,10 +56,37 @@ const CANAL: Record<StatusCanal, { texto: string; tom: TomBadge; icone: React.Re
   banido: { texto: "Banido", tom: "critico", icone: <XCircle className="size-3.5" /> },
 };
 
-export function SeloCanal({ status }: { status: StatusCanal }) {
+/**
+ * Selo do canal, com o grau de confiança junto.
+ *
+ * `confianca` chega de `apresentarCanal()`, no domínio. Sem ela o selo afirmava
+ * "Conectado" a partir de um cache que ninguém tinha conferido — inclusive para
+ * um canal que nunca chegou a parear.
+ *
+ * Não confirmado perde a cor: verde desbotado ainda é lido como "está tudo bem"
+ * de relance, e o ponto aqui é justamente não afirmar.
+ */
+export function SeloCanal({
+  status,
+  confianca = "confirmado",
+}: {
+  status: StatusCanal;
+  confianca?: ConfiancaCanal;
+}) {
   const c = CANAL[status];
+  if (confianca === "confirmado") {
+    return (
+      <Badge tom={c.tom} icone={c.icone}>
+        {c.texto}
+      </Badge>
+    );
+  }
+
   return (
-    <Badge tom={c.tom} icone={c.icone}>
+    <Badge
+      tom={confianca === "contraditorio" ? "aviso" : "neutro"}
+      icone={<HelpCircle className="size-3.5" />}
+    >
       {c.texto}
     </Badge>
   );

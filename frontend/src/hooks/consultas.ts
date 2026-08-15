@@ -10,6 +10,7 @@ import type {
   Incidente,
   Lista,
   LogAuditoria,
+  MetodoPareamento,
   MetricasDashboard,
   Paginado,
   Papel,
@@ -52,9 +53,22 @@ export interface EstadoIntegracao {
   semProvedor: boolean;
 }
 
+/**
+ * Sinal de vida do worker de disparo.
+ *
+ * `ativo: false` significa que nenhuma campanha está saindo — foi assim por
+ * dias sem nada na tela dizer isso. `pulsoEm` nulo é "nunca bateu": worker que
+ * jamais subiu, e não worker que parou agora.
+ */
+export interface EstadoDisparo {
+  pulsoEm: string | null;
+  ativo: boolean;
+}
+
 export interface Sessao {
   usuario: { id: string; nome: string; email: string; papel: Papel };
   integracao: EstadoIntegracao;
+  disparo: EstadoDisparo;
 }
 
 export function useSessao(habilitado = true) {
@@ -228,6 +242,23 @@ function useInvalidar() {
   };
 }
 
+/**
+ * Pergunta ao gateway o estado real da sessão, agora.
+ *
+ * `confirmado: false` quer dizer que o gateway não respondeu — e nesse caso
+ * nada foi gravado. A tela precisa dizer "não consegui perguntar", nunca
+ * "desconectado": um é problema nosso, o outro manda o cliente correr atrás de
+ * um QR Code que está funcionando.
+ */
+export function useVerificarCanal() {
+  const invalidar = useInvalidar();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.post<{ canal: Canal; confirmado: boolean }>(`/canais/${id}/verificar`),
+    onSuccess: () => invalidar("canais"),
+  });
+}
+
 export function useAjustarCanal() {
   const invalidar = useInvalidar();
   return useMutation({
@@ -252,14 +283,28 @@ export function useExcluirCanal() {
   });
 }
 
+/** O que a API devolve ao abrir um pareamento, seja na criação ou na reconexão. */
+export interface Pareamento {
+  metodo: MetodoPareamento;
+  /** Preenchido no método `qrcode`. */
+  qr: string | null;
+  /** Código de 8 dígitos, preenchido no método `codigo`. */
+  codigo: string | null;
+  expiraEm: string | null;
+  aviso?: string;
+}
+
 export function useCriarCanal() {
   const invalidar = useInvalidar();
   return useMutation({
-    mutationFn: (dados: { nome: string; limiteDiario: number; estagioAquecimento: number }) =>
-      api.post<{ canal: Canal; qr: string | null; expiraEm: string | null; aviso?: string }>(
-        "/canais",
-        dados,
-      ),
+    mutationFn: (dados: {
+      nome: string;
+      limiteDiario: number;
+      estagioAquecimento: number;
+      metodoPareamento: MetodoPareamento;
+      /** Só no método `codigo`: o celular que vai parear. */
+      numeroPareamento?: string;
+    }) => api.post<Pareamento & { canal: Canal }>("/canais", dados),
     onSuccess: () => invalidar("canais"),
   });
 }
@@ -267,8 +312,10 @@ export function useCriarCanal() {
 export function useReconectarCanal() {
   const invalidar = useInvalidar();
   return useMutation({
-    mutationFn: (id: string) =>
-      api.post<{ qr: string; expiraEm: string }>(`/canais/${id}/reconectar`),
+    mutationFn: (v: { id: string; metodoPareamento: MetodoPareamento; numeroPareamento?: string }) => {
+      const { id, ...corpo } = v;
+      return api.post<Pareamento>(`/canais/${id}/reconectar`, corpo);
+    },
     onSuccess: () => invalidar("canais"),
   });
 }
