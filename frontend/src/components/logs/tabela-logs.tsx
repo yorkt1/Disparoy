@@ -34,6 +34,7 @@ const ACOES: Record<AcaoLog, { texto: string; tom: TomBadge }> = {
   "lista.criada": { texto: "Lista criada", tom: "neutro" },
   "lista.excluida": { texto: "Lista excluída", tom: "critico" },
   "sessao.iniciada": { texto: "Login", tom: "neutro" },
+  "empresa.criada": { texto: "Empresa criada", tom: "marca" },
   "usuario.criado": { texto: "Acesso criado", tom: "marca" },
   "usuario.papel_alterado": { texto: "Papel alterado", tom: "aviso" },
   "usuario.senha_redefinida": { texto: "Senha redefinida", tom: "aviso" },
@@ -51,6 +52,7 @@ const ENTIDADES: Record<TipoEntidade, string> = {
   contato: "Contato",
   lista: "Lista",
   usuario: "Usuário",
+  empresa: "Empresa",
 };
 
 export function TabelaLogs({ logs }: { logs: LogAuditoria[] }) {

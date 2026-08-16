@@ -8,13 +8,13 @@ import { Etapa, type EstadoEtapa } from "@/components/ui/etapa";
 import { useToast } from "@/components/ui/toast";
 import { LIMITES } from "@disparoy/dominio";
 
-import type { Canal, Lista, Spintax } from "@disparoy/dominio";
+import type { Canal, Spintax } from "@disparoy/dominio";
 import { cn, formatarNumero } from "@/lib/formato";
 import { ErroApi } from "@/lib/api";
 import { useCriarCampanha } from "@/hooks/consultas";
 import { useFormularioCampanha } from "@/hooks/use-formulario-campanha";
 import { EditorMensagem } from "./editor-mensagem";
-import { SeletorLista } from "./seletor-lista";
+import { SeletorPublico } from "./seletor-publico";
 import { PainelResumo } from "./painel-resumo";
 import { PreviaConversa } from "./previa-conversa";
 import { SeletorCanais } from "./seletor-canais";
@@ -22,14 +22,12 @@ import { ControleIntervalo } from "./controle-intervalo";
 
 export function FormularioCampanha({
   canais,
-  listas,
   variacoesIniciais,
 }: {
   canais: Canal[];
-  listas: Lista[];
   variacoesIniciais: Spintax[];
 }) {
-  const { estado, despachar, veredito } = useFormularioCampanha(listas, canais);
+  const { estado, despachar, veredito } = useFormularioCampanha(canais);
   const [variacoes, setVariacoes] = React.useState(variacoesIniciais);
   const [enviando, setEnviando] = React.useState<"disparo" | "rascunho" | null>(null);
   const { mostrar } = useToast();
@@ -46,7 +44,7 @@ export function FormularioCampanha({
         intervaloEntreContatos: estado.intervaloEntreContatos,
         intervaloEntreMensagens: estado.intervaloEntreMensagens,
         validarNumeros: estado.validarNumeros,
-        listaId: estado.listaId,
+        publico: estado.publico,
         // O <input datetime-local> devolve hora local; a API só aceita ISO com
         // fuso, senão um agendamento das 9h viraria 9h UTC (6h em Brasília).
         agendadaPara: estado.agendadaPara ? new Date(estado.agendadaPara).toISOString() : null,
@@ -199,19 +197,18 @@ export function FormularioCampanha({
         {/* ---------------------------------------------------------------- */}
         <Etapa
           numero={4}
-          titulo="Lista de contatos"
-          descricao="Só contatos com consentimento registrado recebem a campanha."
-          estado={marcar(veredito.contatos, estado.listaId !== null)}
+          titulo="Quem vai receber"
+          descricao="Por planilha ou colando os números. Eles ficam só nesta campanha."
+          estado={marcar(veredito.contatos, estado.publico.length > 0)}
           resumo={
-            estado.listaId
-              ? `${formatarNumero(veredito.contatosElegiveis)} elegíveis`
+            estado.publico.length > 0
+              ? `${formatarNumero(veredito.contatosElegiveis)} contatos`
               : undefined
           }
         >
-          <SeletorLista
-            listas={listas}
-            selecionada={estado.listaId}
-            aoSelecionar={(id) => despachar({ tipo: "lista", id })}
+          <SeletorPublico
+            publico={estado.publico}
+            aoMudar={(contatos) => despachar({ tipo: "publico", contatos })}
           />
         </Etapa>
 

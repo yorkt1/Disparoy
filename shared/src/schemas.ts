@@ -102,7 +102,23 @@ export const optOutManualSchema = z.object({
 export const campanhaEntradaSchema = z
   .object({
     nome: z.string().trim().min(3).max(LIMITES.maxCaracteresNomeCampanha),
-    listaId: z.string().uuid({ message: "Selecione uma lista de contatos." }),
+    /**
+     * O público vive DENTRO da campanha.
+     *
+     * Substituiu `listaId`: não existe mais cadastro de contatos, e a lista de
+     * destino chega por planilha ou colagem no momento de criar. O telefone já
+     * vem normalizado em E.164 pelo domínio, dos dois lados.
+     */
+    publico: z
+      .array(
+        z.object({
+          telefone: z.string().regex(/^\+[1-9][0-9]{7,14}$/, "Telefone inválido."),
+          nome: z.string().trim().max(120).default(""),
+          variaveis: z.record(z.string()).default({}),
+        }),
+      )
+      .min(1, "Adicione ao menos um contato à campanha.")
+      .max(LIMITES.maxContatosPorImportacao),
     canaisIds: z.array(z.string().uuid()).min(1, "Selecione ao menos um canal."),
     sequencia: z
       .array(mensagemSequenciaSchema)
@@ -199,7 +215,8 @@ export const geracaoVariacoesSchema = z.object({
 export const canalEntradaSchema = z
   .object({
     nome: z.string().trim().min(2).max(60),
-    limiteDiario: z.number().int().min(1).max(100_000).default(LIMITES.limiteDiarioNumeroNovo),
+    /** `null` = sem teto diário, que é o padrão agora. */
+    limiteDiario: z.number().int().min(1).max(100_000).nullable().default(null),
     estagioAquecimento: z.number().int().min(0).max(3).default(0),
     metodoPareamento: z.enum(["qrcode", "codigo"]).default("qrcode"),
     /** E.164 do celular que vai parear. Só no método `codigo`. */
@@ -282,6 +299,14 @@ export const novoUsuarioSchema = z.object({
   email: z.string().trim().email(),
   senha: senhaSchema,
   papel: z.enum(["admin", "operator"]).default("operator"),
+  /**
+   * A empresa do novo acesso. Só a conta de administração pode escolher.
+   *
+   * `null` cria outro acesso GLOBAL — é assim que nasce um segundo
+   * administrador de sistema. Quando quem cria pertence a uma empresa, este
+   * campo é ignorado e o acesso herda a empresa dele.
+   */
+  empresaId: z.string().uuid().nullable().optional(),
 });
 
 /**

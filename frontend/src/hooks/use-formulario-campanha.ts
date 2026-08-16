@@ -4,7 +4,7 @@ import {
   INTERVALO_PADRAO_ENTRE_MENSAGENS,
   LIMITES,
 } from "@disparoy/dominio";
-import type { Canal, IntervaloAleatorio, Lista, MensagemSequencia } from "@disparoy/dominio";
+import type { Canal, IntervaloAleatorio, MensagemSequencia } from "@disparoy/dominio";
 import { gerarId } from "@/lib/formato";
 
 /**
@@ -22,10 +22,22 @@ export interface EstadoCampanha {
   intervaloEntreContatos: IntervaloAleatorio;
   intervaloEntreMensagens: IntervaloAleatorio;
   validarNumeros: boolean;
-  /** Lista de contatos alvo — os contatos vivem fora da campanha. */
-  listaId: string | null;
+  /**
+   * O público da campanha, vindo de planilha ou colagem.
+   *
+   * Substituiu `listaId`: não há mais cadastro de contatos, então a lista de
+   * destino nasce e morre com a campanha. O telefone já chega normalizado em
+   * E.164 pelo domínio.
+   */
+  publico: ContatoPublico[];
   /** Valor cru do <input type="datetime-local">; null = envio imediato. */
   agendadaPara: string | null;
+}
+
+export interface ContatoPublico {
+  telefone: string;
+  nome: string;
+  variaveis: Record<string, string>;
 }
 
 export type AcaoCampanha =
@@ -38,7 +50,7 @@ export type AcaoCampanha =
   | { tipo: "intervaloContatos"; valor: IntervaloAleatorio }
   | { tipo: "intervaloMensagens"; valor: IntervaloAleatorio }
   | { tipo: "validarNumeros"; valor: boolean }
-  | { tipo: "lista"; id: string | null }
+  | { tipo: "publico"; contatos: ContatoPublico[] }
   | { tipo: "agendamento"; valor: string | null };
 
 /**
@@ -54,7 +66,7 @@ export function estadoInicial(canais: Canal[] = []): EstadoCampanha {
     intervaloEntreContatos: { ...INTERVALO_PADRAO_ENTRE_CONTATOS },
     intervaloEntreMensagens: { ...INTERVALO_PADRAO_ENTRE_MENSAGENS },
     validarNumeros: true,
-    listaId: null,
+    publico: [],
     agendadaPara: null,
   };
 }
@@ -113,8 +125,20 @@ export function reducer(estado: EstadoCampanha, acao: AcaoCampanha): EstadoCampa
     case "validarNumeros":
       return { ...estado, validarNumeros: acao.valor };
 
-    case "lista":
-      return { ...estado, listaId: acao.id };
+    case "publico": {
+      // Deduplica por telefone aqui, e não só no banco: o operador precisa ver
+      // o número REAL de destinatários antes de disparar, não descobrir depois
+      // que 300 das 1000 linhas da planilha eram repetidas.
+      const vistos = new Set<string>();
+      return {
+        ...estado,
+        publico: acao.contatos.filter((c) => {
+          if (vistos.has(c.telefone)) return false;
+          vistos.add(c.telefone);
+          return true;
+        }),
+      };
+    }
 
     case "agendamento":
       return { ...estado, agendadaPara: acao.valor };
@@ -133,23 +157,27 @@ export interface VereditoEtapas {
   /** Pendências mostradas no painel lateral antes de liberar o disparo. */
   pendencias: string[];
   prontaParaDisparo: boolean;
-  /** Quantos da lista escolhida podem legalmente receber. */
+  /**
+   * Quantos vão receber.
+   *
+   * É o tamanho do público informado. Quem pediu para sair só é descontado no
+   * banco, na hora de materializar — o painel não guarda mais essa lista, e
+   * fingir que sabe o número exato aqui seria mentir por antecipação.
+   */
   contatosElegiveis: number;
-  /** Quantos estão na lista mas não podem receber. */
+  /** Repetidos que a colagem/planilha trazia e foram descartados. */
   contatosBloqueados: number;
 }
 
-export function avaliarEtapas(estado: EstadoCampanha, listas: Lista[]): VereditoEtapas {
-  const lista = listas.find((l) => l.id === estado.listaId);
-  const contatosElegiveis = lista?.totalElegiveis ?? 0;
-  const contatosBloqueados = lista ? lista.totalContatos - lista.totalElegiveis : 0;
+export function avaliarEtapas(estado: EstadoCampanha): VereditoEtapas {
+  const contatosElegiveis = estado.publico.length;
 
   const nome = estado.nome.trim().length >= 3;
   const canais = estado.canaisIds.length > 0;
   const sequencia = estado.sequencia.every((m) =>
     m.tipo === "midia" ? Boolean(m.midia) : m.corpo.trim().length > 0,
   );
-  const contatos = Boolean(estado.listaId) && contatosElegiveis > 0;
+  const contatos = contatosElegiveis > 0;
 
   const agendamentoNoFuturo =
     !estado.agendadaPara || new Date(estado.agendadaPara).getTime() > Date.now();
@@ -158,9 +186,8 @@ export function avaliarEtapas(estado: EstadoCampanha, listas: Lista[]): Veredito
   if (!nome) pendencias.push("Dê um nome à campanha (mínimo 3 caracteres).");
   if (!canais) pendencias.push("Selecione ao menos um canal.");
   if (!sequencia) pendencias.push("Há mensagens vazias na sequência.");
-  if (!estado.listaId) pendencias.push("Escolha a lista de contatos.");
-  else if (contatosElegiveis === 0) {
-    pendencias.push("Nenhum contato da lista pode receber mensagem.");
+  if (contatosElegiveis === 0) {
+    pendencias.push("Adicione os contatos por planilha ou colando os números.");
   }
   if (!agendamentoNoFuturo) pendencias.push("A data de agendamento já passou.");
 
@@ -173,15 +200,15 @@ export function avaliarEtapas(estado: EstadoCampanha, listas: Lista[]): Veredito
     pendencias,
     prontaParaDisparo: pendencias.length === 0,
     contatosElegiveis,
-    contatosBloqueados,
+    contatosBloqueados: 0,
   };
 }
 
-export function useFormularioCampanha(listas: Lista[], canais: Canal[] = []) {
+export function useFormularioCampanha(canais: Canal[] = []) {
   // Inicialização preguiçosa: `canais` só é lido na montagem, e o formulário só
   // monta com os canais já carregados. Marcar depois, por efeito, sobrescreveria
   // uma desmarcação deliberada do operador.
   const [estado, despachar] = React.useReducer(reducer, canais, estadoInicial);
-  const veredito = React.useMemo(() => avaliarEtapas(estado, listas), [estado, listas]);
+  const veredito = React.useMemo(() => avaliarEtapas(estado), [estado]);
   return { estado, despachar, veredito };
 }

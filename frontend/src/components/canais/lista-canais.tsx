@@ -8,7 +8,6 @@ import {
   Plus,
   PlugZap,
   QrCode,
-  RefreshCw,
   Smartphone,
   Trash2,
   Unplug,
@@ -28,7 +27,7 @@ import {
   type Canal,
   type MetodoPareamento,
 } from "@disparoy/dominio";
-import { cn, formatarDataHora, formatarTelefone } from "@/lib/formato";
+import { cn, formatarDataHora, formatarNumero, formatarTelefone } from "@/lib/formato";
 import { baixarArquivo, ErroApi } from "@/lib/api";
 import {
   useAjustarCanal,
@@ -115,7 +114,8 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
 
   const mudanca = useAjustarCanal();
   const exclusao = useExcluirCanal();
-  const verificando = useVerificacaoAutomatica(canais);
+  // Roda em silêncio: o retorno é ignorado de propósito, a tela não anuncia.
+  useVerificacaoAutomatica(canais);
   const emAcao = mudanca.isPending || exclusao.isPending ? (mudanca.variables?.id ?? exclusao.variables) : null;
 
   const filtrados = canais.filter((c) => status === "todos" || c.status === status);
@@ -220,11 +220,21 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
     },
     {
       chave: "uso",
-      titulo: "Uso hoje",
+      titulo: "Enviadas hoje",
       alinhamento: "direita",
+      /*
+       * Só o número, sem "/50".
+       *
+       * O teto diário deixou de existir por padrão — mostrar `0/50` anunciava
+       * um limite que não é aplicado, e um limite falso é pior que limite
+       * nenhum: leva a planejar a campanha em torno dele.
+       */
       celula: (c) => (
         <span className="tabular text-tinta-2">
-          {c.enviadasHoje}/{c.limiteDiario}
+          {formatarNumero(c.enviadasHoje)}
+          {c.limiteDiario !== null && (
+            <span className="text-tinta-3">/{formatarNumero(c.limiteDiario)}</span>
+          )}
         </span>
       ),
     },
@@ -339,17 +349,12 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-tinta">Canais</h1>
-          {/* O aviso substitui o antigo botão "Verificar": em vez de pedir que
-              o operador desconfie da tela, a tela conta o que está fazendo. */}
-          <p className="mt-1 flex items-center gap-1.5 text-sm text-tinta-3">
-            {verificando ? (
-              <>
-                <RefreshCw aria-hidden className="size-3.5 animate-spin" />
-                Conferindo o estado dos canais no WhatsApp…
-              </>
-            ) : (
-              "Números de WhatsApp disponíveis para disparo."
-            )}
+          {/* A verificação acontece em silêncio.
+              Anunciar "conferindo…" transferia para o operador a tarefa de
+              esperar e reparar no processo. Ele quer o estado certo, não o
+              relatório de como o sistema chegou nele. */}
+          <p className="mt-1 text-sm text-tinta-3">
+            Números de WhatsApp disponíveis para disparo.
           </p>
         </div>
         <Botao variante="primario" onClick={() => setConectando(true)}>

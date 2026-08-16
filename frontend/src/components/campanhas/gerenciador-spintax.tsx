@@ -53,8 +53,13 @@ export function ModalVariacoes({
   aoFechar: () => void;
   variacoes: Spintax[];
   aoMudar: (lista: Spintax[]) => void;
-  /** Insere {{*nome*}} na mensagem que abriu o modal. */
-  aoSelecionar: (nome: string) => void;
+  /**
+   * Insere {{*nome*}} na mensagem que abriu o modal.
+   *
+   * Ausente quando o modal é aberto pela página de Spintax: ali não existe
+   * mensagem em que inserir, e o botão "Selecionar" some.
+   */
+  aoSelecionar?: (nome: string) => void;
 }) {
   const [vista, setVista] = React.useState<"lista" | "formulario">("lista");
   const [nome, setNome] = React.useState("");
@@ -184,7 +189,7 @@ export function ModalVariacoes({
   }
 
   function selecionar(item: Spintax) {
-    aoSelecionar(item.nome);
+    aoSelecionar?.(item.nome);
     fechar();
   }
 
@@ -225,7 +230,7 @@ export function ModalVariacoes({
           aoCriar={abrirCriacao}
           aoEditar={abrirEdicao}
           aoExcluir={excluir}
-          aoSelecionar={selecionar}
+          aoSelecionar={aoSelecionar ? selecionar : undefined}
           excluindo={exclusao.isPending}
         />
       ) : (
@@ -260,7 +265,7 @@ function ListaVariacoes({
   aoCriar: () => void;
   aoEditar: (v: Spintax) => void;
   aoExcluir: (v: Spintax) => void;
-  aoSelecionar: (v: Spintax) => void;
+  aoSelecionar?: (v: Spintax) => void;
   excluindo: boolean;
 }) {
   return (
@@ -314,10 +319,12 @@ function ListaVariacoes({
                 >
                   <Trash2 aria-hidden className="size-3.5" />
                 </Botao>
-                <Botao tamanho="sm" variante="primario" onClick={() => aoSelecionar(v)}>
-                  <Check aria-hidden className="size-3.5" />
-                  Selecionar
-                </Botao>
+                {aoSelecionar && (
+                  <Botao tamanho="sm" variante="primario" onClick={() => aoSelecionar(v)}>
+                    <Check aria-hidden className="size-3.5" />
+                    Selecionar
+                  </Botao>
+                )}
               </div>
             </li>
           ))}

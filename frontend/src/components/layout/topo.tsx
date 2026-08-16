@@ -2,15 +2,12 @@ import * as React from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   BarChart3,
-  FileText,
   LayoutDashboard,
   Menu,
-  Bell,
   ScanSearch,
-  ScrollText,
   Send,
+  Shuffle,
   Smartphone,
-  Users,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/formato";
@@ -26,17 +23,22 @@ interface ItemNav {
   somenteAdmin?: boolean;
 }
 
+/*
+ * Contatos saiu: não existe mais cadastro — o público entra na campanha.
+ *
+ * Avisos e Logs viraram abas de Diagnóstico. Eram três telas respondendo à
+ * mesma pergunta em recortes diferentes ("o que quebrou?"), e obrigavam o
+ * operador a montar a visão geral de cabeça, pulando entre elas.
+ *
+ * Templates continua existindo em `/templates`, fora do menu: só serve à API
+ * Oficial da Meta, e todo o uso hoje é Evolution com texto livre.
+ */
 const NAVEGACAO: ItemNav[] = [
   { href: "/dashboard", rotulo: "Dashboard", icone: LayoutDashboard },
   { href: "/campanhas", rotulo: "Campanhas", icone: Send },
-  { href: "/contatos", rotulo: "Contatos", icone: Users },
-  { href: "/templates", rotulo: "Templates", icone: FileText },
+  { href: "/spintax", rotulo: "Spintax", icone: Shuffle },
   { href: "/canais", rotulo: "Canais", icone: Smartphone },
-  { href: "/avisos", rotulo: "Avisos", icone: Bell },
-  // Só admin: a resposta carrega o texto cru do gateway, que às vezes traz o
-  // número do destinatário. É material de investigação, como a auditoria.
-  { href: "/diagnostico", rotulo: "Diagnóstico", icone: ScanSearch, somenteAdmin: true },
-  { href: "/logs", rotulo: "Logs", icone: ScrollText, somenteAdmin: true },
+  { href: "/diagnostico", rotulo: "Diagnóstico", icone: ScanSearch },
 ];
 
 export function Topo({ usuario }: { usuario: PerfilSessao }) {
@@ -82,7 +84,7 @@ export function Topo({ usuario }: { usuario: PerfilSessao }) {
               >
                 <Icone aria-hidden className="size-4" />
                 {item.rotulo}
-                {item.href === "/avisos" && naoLidos > 0 && (
+                {item.href === "/diagnostico" && naoLidos > 0 && (
                   <span
                     aria-label={`${naoLidos} avisos não lidos`}
                     className="ml-0.5 min-w-4 rounded-full bg-critico px-1 text-center text-[11px] font-medium text-white"
@@ -138,7 +140,7 @@ export function Topo({ usuario }: { usuario: PerfilSessao }) {
               >
                 <Icone aria-hidden className="size-4" />
                 {item.rotulo}
-                {item.href === "/avisos" && naoLidos > 0 && (
+                {item.href === "/diagnostico" && naoLidos > 0 && (
                   <span
                     aria-label={`${naoLidos} avisos não lidos`}
                     className="ml-0.5 min-w-4 rounded-full bg-critico px-1 text-center text-[11px] font-medium text-white"

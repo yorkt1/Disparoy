@@ -2,15 +2,16 @@ import { Link } from "react-router-dom";
 import { ChevronLeft } from "lucide-react";
 import { FormularioCampanha } from "@/components/campanhas/formulario-campanha";
 import { Carregando, ErroCarregamento } from "@/components/ui/estados";
-import { useCanais, useListas, useSpintax } from "@/hooks/consultas";
+import { useCanais, useSpintax } from "@/hooks/consultas";
 
 export function PaginaNovaCampanha() {
   const canais = useCanais();
-  const listas = useListas();
   const spintax = useSpintax();
 
-  const carregando = canais.isLoading || listas.isLoading || spintax.isLoading;
-  const erro = canais.error ?? listas.error ?? spintax.error;
+  // Listas saíram daqui: o público entra na etapa 4, por planilha ou colagem,
+  // e não existe mais cadastro de contatos para carregar antes.
+  const carregando = canais.isLoading || spintax.isLoading;
+  const erro = canais.error ?? spintax.error;
 
   return (
     <>
@@ -29,13 +30,12 @@ export function PaginaNovaCampanha() {
       </div>
 
       {carregando ? (
-        <Carregando rotulo="Carregando canais, listas e variações…" />
+        <Carregando rotulo="Carregando canais e variações…" />
       ) : erro ? (
         <ErroCarregamento
           erro={erro}
           aoTentarNovamente={() => {
             void canais.refetch();
-            void listas.refetch();
             void spintax.refetch();
           }}
         />
@@ -43,7 +43,6 @@ export function PaginaNovaCampanha() {
         <FormularioCampanha
           // Só canais conectados podem receber disparo.
           canais={(canais.data ?? []).filter((c) => c.status === "conectado")}
-          listas={listas.data ?? []}
           variacoesIniciais={spintax.data ?? []}
         />
       )}

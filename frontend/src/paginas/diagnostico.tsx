@@ -1,9 +1,11 @@
 import * as React from "react";
-import { Copy, ListFilter, ScanSearch, X } from "lucide-react";
-import type { AmostraFalha, ResumoFalha } from "@disparoy/dominio";
+import { Bell, BellOff, CheckCheck, Copy, ListFilter, ScanSearch, ScrollText, X } from "lucide-react";
+import type { AmostraFalha, CategoriaFalha, ResumoFalha } from "@disparoy/dominio";
 import {
   ehCodigoConhecido,
   explicar,
+  nivelDaCobertura,
+  ORIGENS,
   semClassificacao,
   totalDeFalhas,
   totalSemClassificacao,
@@ -21,9 +23,21 @@ import { Botao } from "@/components/ui/botao";
 import { Carregando, ErroCarregamento } from "@/components/ui/estados";
 import { Tabela, type Coluna } from "@/components/ui/tabela";
 import { SeloOrigem } from "@/components/avisos/selo-origem";
+import { CartaoAviso } from "@/components/avisos/cartao-aviso";
+import { TabelaLogs } from "@/components/logs/tabela-logs";
 import { useToast } from "@/components/ui/toast";
-import { useAmostrasFalha, useDiagnostico } from "@/hooks/consultas";
+import {
+  useAmostrasFalha,
+  useAvisos,
+  useContagemAvisos,
+  useDiagnostico,
+  useEhAdmin,
+  useLogs,
+  useMarcarTodosAvisosLidos,
+} from "@/hooks/consultas";
 import { formatarDataHora, formatarNumero } from "@/lib/formato";
+
+const CATEGORIAS = Object.keys(ORIGENS) as CategoriaFalha[];
 
 /**
  * Diagnóstico de falhas.
@@ -45,7 +59,93 @@ const JANELAS = [
   { dias: 90, rotulo: "90 dias" },
 ];
 
+type Aba = "avisos" | "falhas" | "auditoria";
+
+/**
+ * Uma tela para "o que está acontecendo".
+ *
+ * Avisos, Falhas e Auditoria eram três telas no menu respondendo à mesma
+ * pergunta em recortes diferentes — o que quebrou agora, o que vem quebrando, e
+ * quem mexeu em quê. Separadas, obrigavam o operador a montar a visão geral de
+ * cabeça, pulando entre elas e perdendo a relação de causa entre as três.
+ *
+ * A ordem das abas é a da urgência: o que exige ação, o que exige análise, o
+ * que exige investigação.
+ */
 export function PaginaDiagnostico() {
+  const [aba, setAba] = React.useState<Aba>("avisos");
+  const contagem = useContagemAvisos();
+  const naoLidos = contagem.data?.total ?? 0;
+  const admin = useEhAdmin();
+
+  return (
+    <div>
+      <CabecalhoPagina
+        titulo="Diagnóstico"
+        descricao="O que está quebrado agora, o que vem quebrando, e quem mexeu em quê."
+      />
+
+      <div className="mb-5 flex flex-wrap gap-1.5" role="tablist" aria-label="Seções">
+        <BotaoAba ativa={aba === "avisos"} onClick={() => setAba("avisos")} contador={naoLidos}>
+          <Bell aria-hidden className="size-4" />
+          Avisos
+        </BotaoAba>
+        <BotaoAba ativa={aba === "falhas"} onClick={() => setAba("falhas")}>
+          <ScanSearch aria-hidden className="size-4" />
+          Falhas
+        </BotaoAba>
+        {/* Auditoria traz IP e metadados de importação — material de
+            investigação, e por isso continua restrita a administradores. */}
+        {admin && (
+          <BotaoAba ativa={aba === "auditoria"} onClick={() => setAba("auditoria")}>
+            <ScrollText aria-hidden className="size-4" />
+            Auditoria
+          </BotaoAba>
+        )}
+      </div>
+
+      {aba === "avisos" && <SecaoAvisos />}
+      {aba === "falhas" && <SecaoFalhas />}
+      {aba === "auditoria" && admin && <SecaoAuditoria />}
+    </div>
+  );
+}
+
+function BotaoAba({
+  ativa,
+  onClick,
+  contador,
+  children,
+}: {
+  ativa: boolean;
+  onClick: () => void;
+  contador?: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={ativa}
+      onClick={onClick}
+      className={[
+        "flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm transition-colors",
+        ativa
+          ? "bg-superficie-3 font-medium text-tinta"
+          : "text-tinta-2 hover:bg-superficie-2 hover:text-tinta",
+      ].join(" ")}
+    >
+      {children}
+      {contador !== undefined && contador > 0 && (
+        <span className="min-w-4 rounded-full bg-critico px-1 text-center text-[11px] font-medium text-white">
+          {contador > 9 ? "9+" : contador}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function SecaoFalhas() {
   const [dias, setDias] = React.useState(7);
   const [codigoAberto, setCodigoAberto] = React.useState<string | null>(null);
 
@@ -67,24 +167,23 @@ export function PaginaDiagnostico() {
 
   return (
     <div>
-      <CabecalhoPagina
-        titulo="Diagnóstico de falhas"
-        descricao="O que o gateway respondeu, agrupado. É daqui que sai a próxima regra de classificação."
-        acao={
-          <div className="flex gap-1.5" role="group" aria-label="Janela de tempo">
-            {JANELAS.map((j) => (
-              <Botao
-                key={j.dias}
-                variante={dias === j.dias ? "primario" : "fantasma"}
-                tamanho="sm"
-                onClick={() => trocarJanela(j.dias)}
-              >
-                {j.rotulo}
-              </Botao>
-            ))}
-          </div>
-        }
-      />
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-tinta-3">
+          O que o gateway respondeu, agrupado. É daqui que sai a próxima regra de classificação.
+        </p>
+        <div className="flex gap-1.5" role="group" aria-label="Janela de tempo">
+          {JANELAS.map((j) => (
+            <Botao
+              key={j.dias}
+              variante={dias === j.dias ? "primario" : "fantasma"}
+              tamanho="sm"
+              onClick={() => trocarJanela(j.dias)}
+            >
+              {j.rotulo}
+            </Botao>
+          ))}
+        </div>
+      </div>
 
       {consulta.isLoading && <Carregando rotulo="Agregando falhas…" />}
       {consulta.error && (
@@ -134,6 +233,107 @@ export function PaginaDiagnostico() {
 }
 
 /**
+ * A caixa de avisos, agora como aba.
+ *
+ * O filtro é por CATEGORIA, não por texto: é a pergunta que o operador
+ * realmente tem — "isso é problema meu ou de vocês?" — em um clique.
+ */
+function SecaoAvisos() {
+  const [incluirLidos, setIncluirLidos] = React.useState(true);
+  const [filtro, setFiltro] = React.useState<CategoriaFalha | "todas">("todas");
+
+  const consulta = useAvisos(incluirLidos);
+  const marcarTodos = useMarcarTodosAvisosLidos();
+
+  const avisos = (consulta.data ?? []).filter((a) => filtro === "todas" || a.categoria === filtro);
+  const naoLidos = (consulta.data ?? []).filter((a) => a.lidaEm === null).length;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        {(["todas", ...CATEGORIAS] as const).map((c) => (
+          <FiltroChip key={c} ativo={filtro === c} onClick={() => setFiltro(c)}>
+            {c === "todas" ? "Todas" : ORIGENS[c].rotulo}
+          </FiltroChip>
+        ))}
+        <div className="ml-auto flex gap-2">
+          <Botao variante="fantasma" tamanho="sm" onClick={() => setIncluirLidos((v) => !v)}>
+            {incluirLidos ? "Só não lidos" : "Mostrar lidos"}
+          </Botao>
+          {naoLidos > 0 && (
+            <Botao
+              tamanho="sm"
+              onClick={() => marcarTodos.mutate()}
+              carregando={marcarTodos.isPending}
+            >
+              <CheckCheck className="size-4" />
+              Marcar todos como lidos
+            </Botao>
+          )}
+        </div>
+      </div>
+
+      {consulta.isLoading && <Carregando rotulo="Carregando avisos…" />}
+      {consulta.error && (
+        <ErroCarregamento erro={consulta.error} aoTentarNovamente={() => void consulta.refetch()} />
+      )}
+
+      {!consulta.isLoading && !consulta.error && avisos.length === 0 && (
+        <Card>
+          <EstadoVazio
+            icone={<BellOff className="size-6" />}
+            titulo="Nada por aqui"
+            descricao="Quando um canal cair ou uma campanha parar, o aviso aparece nesta aba."
+          />
+        </Card>
+      )}
+
+      <div className="space-y-3">
+        {avisos.map((a) => (
+          <CartaoAviso key={a.id} aviso={a} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FiltroChip({
+  ativo,
+  onClick,
+  children,
+}: {
+  ativo: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset transition-colors",
+        ativo
+          ? "bg-marca/12 text-marca-tenue ring-marca/30"
+          : "bg-superficie-2 text-tinta-2 ring-borda-forte hover:bg-superficie-3",
+      ].join(" ")}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Trilha de auditoria: ação humana, imutável. Restrita a administradores. */
+function SecaoAuditoria() {
+  const logs = useLogs({ porPagina: 100 });
+
+  if (logs.isLoading) return <Carregando rotulo="Carregando auditoria…" />;
+  if (logs.error) {
+    return <ErroCarregamento erro={logs.error} aoTentarNovamente={() => void logs.refetch()} />;
+  }
+  return <TabelaLogs logs={logs.data?.itens ?? []} />;
+}
+
+/**
  * Cobertura da classificação.
  *
  * É o número que decide se vale mexer nas regras hoje. Cinco desconhecidas em
@@ -152,7 +352,9 @@ function PainelCobertura({
   dias: number;
 }) {
   const pct = total === 0 ? 0 : (naoClassificadas / total) * 100;
-  const preocupante = pct >= 10;
+  const nivel = nivelDaCobertura(total, naoClassificadas);
+  const preocupante = nivel === "atencao";
+  const amostraPequena = nivel === "amostra_pequena";
 
   return (
     <Card>
@@ -165,13 +367,17 @@ function PainelCobertura({
         />
         <Metrica
           rotulo="Cobertura da taxonomia"
-          valor={`${(100 - pct).toFixed(0)}%`}
-          tom={preocupante ? "critico" : "bom"}
+          // Sem tom com amostra pequena: verde ou vermelho aqui seriam os dois
+          // uma afirmação, e com poucas falhas não há afirmação a fazer.
+          valor={amostraPequena ? "—" : `${(100 - pct).toFixed(0)}%`}
+          tom={amostraPequena ? undefined : preocupante ? "critico" : "bom"}
         />
         <p className="min-w-56 flex-1 text-xs text-tinta-3">
-          {preocupante
-            ? "Uma fatia grande das falhas não casou com nenhuma regra. Vale ler os textos abaixo e escrever a regra que falta em falhas.ts."
-            : "A maior parte das falhas está sendo reconhecida pelas regras atuais."}
+          {amostraPequena
+            ? `Poucas falhas na janela (${formatarNumero(total)}) para a proporção significar alguma coisa. Os textos abaixo continuam valendo um olhar.`
+            : preocupante
+              ? "Uma fatia grande das falhas não casou com nenhuma regra. Vale ler os textos abaixo e escrever a regra que falta em falhas.ts."
+              : "A maior parte das falhas está sendo reconhecida pelas regras atuais."}
         </p>
       </CardCorpo>
     </Card>

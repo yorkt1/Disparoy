@@ -4,11 +4,9 @@ import type {
   Aviso,
   Campanha,
   Canal,
-  Contato,
   ContatoDaCampanha,
   Diagnostico,
   Incidente,
-  Lista,
   LogAuditoria,
   MetodoPareamento,
   MetricasDashboard,
@@ -67,9 +65,28 @@ export interface EstadoDisparo {
 }
 
 export interface Sessao {
-  usuario: { id: string; nome: string; email: string; papel: Papel };
+  usuario: {
+    id: string;
+    nome: string;
+    email: string;
+    papel: Papel;
+    /** `null` = conta de administração do sistema, que atravessa as empresas. */
+    empresaId: string | null;
+  };
   integracao: EstadoIntegracao;
   disparo: EstadoDisparo;
+}
+
+/**
+ * É a conta que administra o SISTEMA (cria empresas e acessos)?
+ *
+ * Diferente de `useEhAdmin`: cada empresa cliente tem o próprio administrador,
+ * e ele administra a empresa dele. Só quem não pertence a empresa nenhuma
+ * administra o sistema.
+ */
+export function useEhContaGlobal(): boolean {
+  const sessao = useSessao();
+  return sessao.data?.usuario.empresaId === null;
 }
 
 export function useSessao(habilitado = true) {
@@ -164,33 +181,6 @@ export function useCanais() {
   return useQuery({
     queryKey: chaves.canais,
     queryFn: () => api.get<{ canais: Canal[] }>("/canais").then((r) => r.canais),
-  });
-}
-
-export interface FiltroContatos {
-  pagina?: number;
-  porPagina?: number;
-  busca?: string;
-  situacao?: "todos" | "elegiveis" | "sem_opt_in" | "opt_out";
-}
-
-export function useContatos(filtros: FiltroContatos = {}) {
-  const p = new URLSearchParams();
-  p.set("pagina", String(filtros.pagina ?? 1));
-  p.set("porPagina", String(filtros.porPagina ?? 25));
-  if (filtros.busca) p.set("busca", filtros.busca);
-  if (filtros.situacao && filtros.situacao !== "todos") p.set("situacao", filtros.situacao);
-
-  return useQuery({
-    queryKey: chaves.contatos(filtros),
-    queryFn: () => api.get<Paginado<Contato>>(`/contatos?${p}`),
-  });
-}
-
-export function useListas() {
-  return useQuery({
-    queryKey: chaves.listas,
-    queryFn: () => api.get<{ listas: Lista[] }>("/listas").then((r) => r.listas),
   });
 }
 
@@ -341,60 +331,6 @@ export function useReconectarCanal() {
   });
 }
 
-export interface EntradaImportacao {
-  contatos: unknown[];
-  consentimento: { origem: string; obtidoEm: string; confirmacao: true };
-  listaId?: string;
-  novaLista?: string;
-  tags: string[];
-}
-
-export function useImportarContatos() {
-  const invalidar = useInvalidar();
-  return useMutation({
-    mutationFn: (dados: EntradaImportacao) =>
-      api.post<{ importados: number; atualizados: number; ignorados: number; listaId: string | null }>(
-        "/contatos/importar",
-        dados,
-      ),
-    onSuccess: () => invalidar("contatos", "listas", "metricas"),
-  });
-}
-
-export function useRegistrarOptOut() {
-  const invalidar = useInvalidar();
-  return useMutation({
-    mutationFn: ({ id, motivo }: { id: string; motivo: string }) =>
-      api.post<{ registrado: boolean }>(`/contatos/${id}/opt-out`, { motivo }),
-    onSuccess: () => invalidar("contatos", "listas", "metricas"),
-  });
-}
-
-export function useExcluirContato() {
-  const invalidar = useInvalidar();
-  return useMutation({
-    mutationFn: (id: string) => api.delete<{ excluido: string }>(`/contatos/${id}`),
-    onSuccess: () => invalidar("contatos", "listas", "metricas"),
-  });
-}
-
-export function useCriarLista() {
-  const invalidar = useInvalidar();
-  return useMutation({
-    mutationFn: (dados: { nome: string; descricao: string | null }) =>
-      api.post<{ lista: Lista }>("/listas", dados),
-    onSuccess: () => invalidar("listas"),
-  });
-}
-
-export function useExcluirLista() {
-  const invalidar = useInvalidar();
-  return useMutation({
-    mutationFn: (id: string) => api.delete<{ excluido: string }>(`/listas/${id}`),
-    onSuccess: () => invalidar("listas"),
-  });
-}
-
 export function useSincronizarTemplates() {
   const invalidar = useInvalidar();
   return useMutation({
@@ -471,12 +407,49 @@ export function useTrocarSenha() {
 }
 
 /** Sem convite por e-mail: o admin já define a senha do novo acesso. */
+/**
+ * Empresas do sistema — só a conta de administração enxerga.
+ *
+ * `habilitado` porque a rota devolve 400 para quem pertence a uma empresa: a
+ * tela só a consulta quando o acesso é global.
+ */
+export interface EmpresaResumo {
+  id: string;
+  nome: string;
+  ativa: boolean;
+  criadaEm: string;
+  acessos: number;
+  canais: number;
+}
+
+export function useEmpresas(habilitado = true) {
+  return useQuery({
+    queryKey: ["empresas"],
+    queryFn: () => api.get<{ empresas: EmpresaResumo[] }>("/empresas").then((r) => r.empresas),
+    enabled: habilitado,
+  });
+}
+
+export function useCriarEmpresa() {
+  const invalidar = useInvalidar();
+  return useMutation({
+    mutationFn: (nome: string) => api.post<{ empresa: EmpresaResumo }>("/empresas", { nome }),
+    onSuccess: () => invalidar("empresas", "usuarios"),
+  });
+}
+
 export function useCriarUsuario() {
   const invalidar = useInvalidar();
   return useMutation({
-    mutationFn: (dados: { nome: string; email: string; senha: string; papel: Papel }) =>
-      api.post<{ usuario: Usuario }>("/usuarios", dados),
-    onSuccess: () => invalidar("usuarios"),
+    mutationFn: (dados: {
+      nome: string;
+      email: string;
+      senha: string;
+      papel: Papel;
+      /** A empresa do acesso. Só a conta global escolhe; `null` cria outra global. */
+      empresaId?: string | null;
+    }) => api.post<{ usuario: Usuario }>("/usuarios", dados),
+    onSuccess: () => invalidar("usuarios", "empresas"),
   });
 }
 

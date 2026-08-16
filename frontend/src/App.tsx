@@ -25,22 +25,18 @@ const PaginaNovaCampanha = lazy(() =>
 const PaginaDetalheCampanha = lazy(() =>
   import("@/paginas/campanha-detalhe").then((m) => ({ default: m.PaginaDetalheCampanha })),
 );
-const PaginaContatos = lazy(() =>
-  import("@/paginas/contatos").then((m) => ({ default: m.PaginaContatos })),
-);
 const PaginaTemplates = lazy(() =>
   import("@/paginas/templates").then((m) => ({ default: m.PaginaTemplates })),
 );
 const PaginaCanais = lazy(() =>
   import("@/paginas/canais").then((m) => ({ default: m.PaginaCanais })),
 );
-const PaginaAvisos = lazy(() =>
-  import("@/paginas/avisos").then((m) => ({ default: m.PaginaAvisos })),
-);
 const PaginaDiagnostico = lazy(() =>
   import("@/paginas/diagnostico").then((m) => ({ default: m.PaginaDiagnostico })),
 );
-const PaginaLogs = lazy(() => import("@/paginas/logs").then((m) => ({ default: m.PaginaLogs })));
+const PaginaSpintax = lazy(() =>
+  import("@/paginas/spintax").then((m) => ({ default: m.PaginaSpintax })),
+);
 const PaginaPerfil = lazy(() =>
   import("@/paginas/perfil").then((m) => ({ default: m.PaginaPerfil })),
 );
@@ -63,12 +59,17 @@ export function App() {
           <Route path="/campanhas" element={<PaginaCampanhas />} />
           <Route path="/campanhas/nova" element={<PaginaNovaCampanha />} />
           <Route path="/campanhas/:id" element={<PaginaDetalheCampanha />} />
-          <Route path="/contatos" element={<PaginaContatos />} />
+          <Route path="/spintax" element={<PaginaSpintax />} />
+          {/* Templates sai do menu mas continua acessível: o backend segue
+              íntegro para quando houver canal de API Oficial da Meta. */}
           <Route path="/templates" element={<PaginaTemplates />} />
           <Route path="/canais" element={<PaginaCanais />} />
-          <Route path="/avisos" element={<PaginaAvisos />} />
           <Route path="/diagnostico" element={<PaginaDiagnostico />} />
-          <Route path="/logs" element={<PaginaLogs />} />
+          {/* Avisos e Logs viraram abas de Diagnóstico. As rotas antigas
+              redirecionam: links salvos e favoritos continuam funcionando. */}
+          <Route path="/avisos" element={<Navigate to="/diagnostico" replace />} />
+          <Route path="/logs" element={<Navigate to="/diagnostico" replace />} />
+          <Route path="/contatos" element={<Navigate to="/campanhas/nova" replace />} />
           {/* O menu de perfil já linkava para cá; sem esta rota o link caía
               no 404. É também onde se troca a própria senha. */}
           <Route path="/perfil" element={<PaginaPerfil />} />
