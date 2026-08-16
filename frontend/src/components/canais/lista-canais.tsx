@@ -1,4 +1,3 @@
-
 import * as React from "react";
 
 import {
@@ -13,7 +12,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
-import { Campo, MensagemErro, Selecao } from "@/components/ui/campos";
+import { Campo, MensagemErro } from "@/components/ui/campos";
 import { Modal } from "@/components/ui/modal";
 import { EstadoVazio } from "@/components/ui/primitivos";
 import { Tabela, FiltroSelecao, type Coluna } from "@/components/ui/tabela";
@@ -21,8 +20,6 @@ import { useToast } from "@/components/ui/toast";
 import { ROTULO_CONEXAO, SeloCampanha, SeloCanal } from "@/components/campanhas/selo-status";
 import {
   apresentarCanal,
-  AQUECIMENTO,
-  limiteSugerido,
   normalizarTelefone,
   type Canal,
   type MetodoPareamento,
@@ -48,8 +45,8 @@ function mensagemDe(e: unknown, padrao: string): string {
  * Enquanto o QR/código está na tela, pergunta ao gateway se já pareou.
  *
  * Sem isto, descobrir que o número conectou dependia de uma de duas coisas:
- * o webhook `CONNECTION_UPDATE` — que nunca chegou nenhuma vez neste sistema,
- * porque exige o gateway alcançar a API — ou a vigilância do worker, que roda
+ * o webhook `CONNECTION_UPDATE` — que nunca chegou nenhuma vez neste sistema,
+ * porque exige o gateway alcançar a API — ou a vigilância do worker, que roda
  * de minuto em minuto. Daí os ~40 segundos olhando para um QR já escaneado,
  * sem saber se tinha dado certo.
  *
@@ -99,7 +96,7 @@ function usePareamentoAoVivo(canalId: string | null, ativo: boolean): Canal | nu
  * Confere sozinho, ao abrir a tela, os canais sem verificação recente.
  *
  * Substituiu o botão "Verificar". Um botão transfere para o operador a tarefa
- * de desconfiar do que a tela mostra — e a tela existe justamente para ele não
+ * de desconfiar do que a tela mostra — e a tela existe justamente para ele não
  * precisar desconfiar. Quem abre Canais quer saber o estado AGORA.
  *
  * Três cuidados que o botão não precisava ter:
@@ -109,7 +106,7 @@ function usePareamentoAoVivo(canalId: string | null, ativo: boolean): Canal | nu
  *  - Um de cada vez, em série. Em paralelo, dez canais viram dez requisições
  *    simultâneas ao gateway, que é exatamente como se toma 429.
  *  - Uma tentativa por montagem, guardada em `ref`. Quando o gateway não
- *    responde nada é gravado, o canal continua desatualizado — e sem esta
+ *    responde nada é gravado, o canal continua desatualizado — e sem esta
  *    trava a tela tentaria de novo em loop infinito.
  */
 function useVerificacaoAutomatica(canais: Canal[]): boolean {
@@ -172,7 +169,7 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
   /*
    * `mudarStatus` saiu junto com o botão Desconectar.
    *
-   * Ele gravava o status direto no banco sem tocar na sessão do gateway — era
+   * Ele gravava o status direto no banco sem tocar na sessão do gateway — era
    * o caminho mais curto para o painel voltar a mentir sobre o estado de um
    * canal. Quem muda o estado agora é o WhatsApp do dono; o painel confere.
    */
@@ -186,6 +183,13 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
    */
   async function extrair(canal: Canal) {
     setExtraindo(canal.id);
+    // Aviso imediato: entre o clique e o arquivo há a ida à Evolution, e sem
+    // isto o primeiro sinal de vida só chega quando o download termina.
+    mostrar({
+      tipo: "info",
+      titulo: "Buscando os contatos no WhatsApp…",
+      descricao: "A agenda vem do aparelho conectado; pode levar alguns segundos.",
+    });
     try {
       const { total } = await baixarArquivo(
         `/canais/${canal.id}/contatos.xlsx`,
@@ -254,7 +258,7 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
         c.numero ? (
           <span className="tabular text-tinta-2">{formatarTelefone(c.numero)}</span>
         ) : (
-          // Antes de parear ninguém sabe qual é — inclusive o sistema.
+          // Antes de parear ninguém sabe qual é — inclusive o sistema.
           <span className="text-xs text-tinta-3">aguardando pareamento</span>
         ),
     },
@@ -265,7 +269,7 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
       /*
        * Só o número, sem "/50".
        *
-       * O teto diário deixou de existir por padrão — mostrar `0/50` anunciava
+       * O teto diário deixou de existir por padrão — mostrar `0/50` anunciava
        * um limite que não é aplicado, e um limite falso é pior que limite
        * nenhum: leva a planejar a campanha em torno dele.
        */
@@ -284,7 +288,7 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
       /*
        * O selo sai de `apresentarCanal()`, não de `c.status` cru. O status
        * gravado é cache do webhook, e foi ele que produziu um canal "Conectado"
-       * que nunca pareou — a tela afirmando o que o próprio dado negava.
+       * que nunca pareou — a tela afirmando o que o próprio dado negava.
        */
       celula: (c) => {
         const a = apresentarCanal(c);
@@ -326,23 +330,29 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
               lista vazia, e o operador baixaria zero linhas achando que a
               agenda dele está vazia. */}
           {c.status === "conectado" && (
+            /*
+             * `carregando` em vez de um ícone piscando.
+             *
+             * A busca leva alguns segundos — quase um da Evolution, mais a
+             * volta pela rede — e o pulso discreto no ícone não parecia
+             * trabalho em andamento: parecia clique perdido. O `carregando` do
+             * Botao troca o ícone por spinner, desabilita e muda o rótulo, que
+             * é o mesmo tratamento dado a toda ação demorada no painel.
+             */
             <Botao
               tamanho="sm"
               variante="fantasma"
-              disabled={extraindo === c.id}
+              carregando={extraindo === c.id}
               onClick={() => extrair(c)}
               title="Baixa a agenda deste número em planilha (nome e numero)"
             >
-              <Download
-                aria-hidden
-                className={`size-3.5 ${extraindo === c.id ? "animate-pulse" : ""}`}
-              />
-              Contatos
+              {extraindo !== c.id && <Download aria-hidden className="size-3.5" />}
+              {extraindo === c.id ? "Buscando…" : "Contatos"}
             </Botao>
           )}
           {/*
             Não existe mais "Desconectar".
-            Desconectar é ato do dono do aparelho, no WhatsApp dele — o painel
+            Desconectar é ato do dono do aparelho, no WhatsApp dele — o painel
             não derruba a sessão de ninguém. O que o painel faz é oferecer o
             caminho de volta: quando a sessão cai, aparece "Conectar".
 
@@ -381,7 +391,7 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-tinta">Canais</h1>
           {/* A verificação acontece em silêncio.
-              Anunciar "conferindo…" transferia para o operador a tarefa de
+              Anunciar "conferindo⬦" transferia para o operador a tarefa de
               esperar e reparar no processo. Ele quer o estado certo, não o
               relatório de como o sistema chegou nele. */}
           <p className="mt-1 text-sm text-tinta-3">
@@ -413,7 +423,7 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
             itens={filtrados}
             chaveDe={(c) => c.id}
             porPagina={10}
-            buscaPlaceholder="Buscar por nome, número ou empresa…"
+            buscaPlaceholder="Buscar por nome, número ou empresa⬦"
             textoBusca={(c) => `${c.nome} ${c.numero ?? ""}`}
             vazio="Nenhum canal com esse filtro."
             filtros={
@@ -449,7 +459,7 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
  * Confirmação de exclusão que mostra o que vai junto.
  *
  * A API recusava excluir canal usado em campanha e mandava "desconecte em vez
- * de excluir" — o canal ficava na lista para sempre, sem saída pelo produto, e
+ * de excluir" — o canal ficava na lista para sempre, sem saída pelo produto, e
  * o operador só descobria o problema DEPOIS de clicar.
  *
  * Agora a verificação vem antes: as campanhas vinculadas são carregadas ao
@@ -500,7 +510,7 @@ function ModalExcluirCanal({
       }
     >
       <div className="flex flex-col gap-3">
-        {vinculos.isLoading && <p className="text-sm text-tinta-3">Conferindo dependências…</p>}
+        {vinculos.isLoading && <p className="text-sm text-tinta-3">Conferindo dependências⬦</p>}
 
         {!vinculos.isLoading && campanhas.length === 0 && (
           <p className="text-sm text-tinta-2">
@@ -515,7 +525,7 @@ function ModalExcluirCanal({
               {campanhas.length === 1 ? "" : "m"} este canal
               {ativas.length > 0 && (
                 <>
-                  {" — "}
+                  {" — "}
                   <strong className="text-critico">
                     {ativas.length} ainda {ativas.length === 1 ? "vai disparar" : "vão disparar"}
                   </strong>
@@ -534,7 +544,7 @@ function ModalExcluirCanal({
             </ul>
 
             <p className="text-xs text-tinta-3">
-              Elas continuam existindo e o histórico do que já foi enviado é preservado — some
+              Elas continuam existindo e o histórico do que já foi enviado é preservado — some
               apenas o vínculo com este canal. Campanha que ainda não disparou precisará de outro
               canal para sair.
             </p>
@@ -550,7 +560,7 @@ function ModalExcluirCanal({
  *
  * Separado da criação porque o canal já existe: aqui não há nome nem
  * aquecimento a escolher, só COMO parear. O método pode ser diferente do usado
- * na primeira vez — quem tentou pelo QR e não tinha uma segunda tela troca para
+ * na primeira vez — quem tentou pelo QR e não tinha uma segunda tela troca para
  * o código sem precisar recriar o canal.
  */
 function ModalReconectarCanal({ canal, aoFechar }: { canal: Canal | null; aoFechar: () => void }) {
@@ -650,7 +660,7 @@ function ModalReconectarCanal({ canal, aoFechar }: { canal: Canal | null; aoFech
               value={numero || (canal?.numero ? formatarTelefone(canal.numero) : "")}
               onChange={(e) => setNumero(e.target.value)}
               placeholder="+55 48 91234-5678"
-              dica="O celular onde o WhatsApp está logado — é nele que o código será digitado."
+              dica="O celular onde o WhatsApp está logado — é nele que o código será digitado."
               inputMode="tel"
               required
             />
@@ -665,7 +675,6 @@ function ModalReconectarCanal({ canal, aoFechar }: { canal: Canal | null; aoFech
 
 function ModalConectarCanal({ aberto, aoFechar }: { aberto: boolean; aoFechar: () => void }) {
   const [nome, setNome] = React.useState("");
-  const [estagio, setEstagio] = React.useState(0);
   const [metodo, setMetodo] = React.useState<MetodoPareamento>("qrcode");
   const [numero, setNumero] = React.useState("");
   const [sessao, setSessao] = React.useState<Pareamento | null>(null);
@@ -677,10 +686,13 @@ function ModalConectarCanal({ aberto, aoFechar }: { aberto: boolean; aoFechar: (
   // Enquanto o QR/código está na tela, pergunta ao gateway a cada 3 s.
   const conectado = usePareamentoAoVivo(canalId, sessao !== null);
 
+  // Dois caracteres é o mínimo que a API aceita — o mesmo gatilho da revelação
+  // e da validação, para a tela não abrir opções que o servidor recusaria.
+  const nomeValido = nome.trim().length >= 2;
+
   function fechar() {
     aoFechar();
     setNome("");
-    setEstagio(0);
     setMetodo("qrcode");
     setNumero("");
     setSessao(null);
@@ -706,8 +718,11 @@ function ModalConectarCanal({ aberto, aoFechar }: { aberto: boolean; aoFechar: (
     try {
       const r = await criacao.mutateAsync({
         nome,
-        limiteDiario: limiteSugerido(estagio),
-        estagioAquecimento: estagio,
+        // Sem teto e sem estágio de aquecimento: o campo prometia "até 50
+        // msgs/dia" de um limite que deixou de ser aplicado, e limite falso é
+        // pior que limite nenhum — leva a planejar a campanha em torno dele.
+        limiteDiario: null,
+        estagioAquecimento: 0,
         metodoPareamento: metodo,
         ...(numeroPareamento ? { numeroPareamento } : {}),
       });
@@ -778,48 +793,39 @@ function ModalConectarCanal({ aberto, aoFechar }: { aberto: boolean; aoFechar: (
             rotulo="Nome do canal"
             value={nome}
             onChange={(e) => setNome(e.target.value)}
-            placeholder="Comercial, Suporte, Vendas…"
+            placeholder="Comercial, Suporte, Vendas⬦"
             dica="Só isto. O número aparece sozinho quando o aparelho parear."
             required
+            autoFocus
           />
 
-          <EscolhaMetodo metodo={metodo} aoMudar={setMetodo} />
+          {/*
+            O resto do formulário só aparece depois do nome.
 
-          {metodo === "codigo" && (
-            <Campo
-              rotulo="Número do WhatsApp"
-              value={numero}
-              onChange={(e) => setNumero(e.target.value)}
-              placeholder="+55 48 91234-5678"
-              dica="O celular onde o WhatsApp está logado — é nele que o código será digitado."
-              inputMode="tel"
-              required
-            />
-          )}
+            Uma pergunta de cada vez: quem abre o modal decide o nome, e só
+            então escolhe como parear. Mostrar tudo de uma vez faz a tela
+            parecer mais trabalho do que é — são dois campos.
 
-          {/* Aquecimento tem padrão seguro (número novo, teto baixo), então não
-              precisa estar no caminho de quem só quer conectar um número. */}
-          <details className="group">
-            <summary className="cursor-pointer list-none text-xs text-tinta-3 hover:text-tinta">
-              Opções avançadas
-              <span className="ml-1.5 inline-block transition-transform group-open:rotate-90">
-                ›
-              </span>
-            </summary>
-            <div className="mt-3">
-              <Selecao
-                rotulo="Estágio de aquecimento"
-                value={String(estagio)}
-                onChange={(e) => setEstagio(Number(e.target.value))}
-              >
-                {AQUECIMENTO.map((a) => (
-                  <option key={a.estagio} value={a.estagio}>
-                    {a.rotulo} — até {a.limiteDiario} msgs/dia
-                  </option>
-                ))}
-              </Selecao>
+            O `prefers-reduced-motion` global já anula a transição para quem
+            pediu menos movimento; não é preciso tratar aqui.
+          */}
+          <Revelar visivel={nomeValido}>
+            <div className="flex flex-col gap-4">
+              <EscolhaMetodo metodo={metodo} aoMudar={setMetodo} />
+
+              <Revelar visivel={metodo === "codigo"}>
+                <Campo
+                  rotulo="Número do WhatsApp"
+                  value={numero}
+                  onChange={(e) => setNumero(e.target.value)}
+                  placeholder="+55 48 91234-5678"
+                  dica="O celular onde o WhatsApp está logado — é nele que o código será digitado."
+                  inputMode="tel"
+                  required
+                />
+              </Revelar>
             </div>
-          </details>
+          </Revelar>
 
           <MensagemErro>{erro}</MensagemErro>
         </div>
@@ -829,10 +835,36 @@ function ModalConectarCanal({ aberto, aoFechar }: { aberto: boolean; aoFechar: (
 }
 
 /**
+ * Revela o conteúdo com altura animada.
+ *
+ * `grid-rows-[0fr] —  [1fr]` em vez de `max-height`: com max-height é preciso
+ * chutar um valor maior que o conteúdo, e o chute sempre erra — ou corta o
+ * texto, ou deixa a animação lenta no começo por causa do espaço que não
+ * existe. O grid anima até a altura real, qualquer que seja ela.
+ *
+ * `invisible` no final fecha um detalhe de acessibilidade: sem ele o conteúdo
+ * escondido continua focável pelo Tab, e o operador tabularia para dentro de
+ * um campo que não está na tela.
+ */
+function Revelar({ visivel, children }: { visivel: boolean; children: React.ReactNode }) {
+  return (
+    <div
+      aria-hidden={!visivel}
+      className={cn(
+        "grid transition-[grid-template-rows,opacity] duration-300 ease-out",
+        visivel ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+      )}
+    >
+      <div className={cn("min-h-0 overflow-hidden", !visivel && "invisible")}>{children}</div>
+    </div>
+  );
+}
+
+/**
  * Escolha entre ler o QR e digitar um código.
  *
  * Existem porque resolvem situações diferentes, não porque uma é melhor: o QR
- * exige DUAS telas — o painel mostrando e o celular lendo. Quem abre o painel
+ * exige DUAS telas — o painel mostrando e o celular lendo. Quem abre o painel
  * no próprio celular, ou opera um número que está com outra pessoa, não tem
  * como usá-lo. Aí o código de 8 dígitos é o único caminho.
  */
@@ -898,7 +930,7 @@ function EscolhaMetodo({
 /**
  * Confirmação do pareamento.
  *
- * Aparece sozinha assim que o gateway confirma — sem o operador clicar em nada.
+ * Aparece sozinha assim que o gateway confirma — sem o operador clicar em nada.
  * Antes, o QR sumia da tela sem dizer se tinha funcionado, e a única forma de
  * saber era voltar para a lista e esperar.
  */
@@ -937,7 +969,7 @@ function PainelPareamento({ sessao }: { sessao: Pareamento }) {
         <ol className="max-w-sm list-decimal space-y-1 pl-5 text-xs text-tinta-2">
           <li>No celular, abra o WhatsApp.</li>
           <li>
-            Toque em <strong className="text-tinta">Aparelhos conectados</strong> →{" "}
+            Toque em <strong className="text-tinta">Aparelhos conectados</strong> — {" "}
             <strong className="text-tinta">Conectar um aparelho</strong>.
           </li>
           <li>
@@ -969,7 +1001,7 @@ function PainelPareamento({ sessao }: { sessao: Pareamento }) {
     );
   }
 
-  // Canal criado, pareamento não. `aviso` explica o porquê — e sem esta tela o
+  // Canal criado, pareamento não. `aviso` explica o porquê — e sem esta tela o
   // operador ficaria olhando um modal vazio sem saber o que deu errado.
   return (
     <div className="rounded-xl border border-aviso/35 bg-aviso/10 p-4">

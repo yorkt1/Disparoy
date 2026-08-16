@@ -310,7 +310,8 @@ export function useCriarCanal() {
   return useMutation({
     mutationFn: (dados: {
       nome: string;
-      limiteDiario: number;
+      /** `null` = sem teto diário, que virou o padrão. */
+      limiteDiario: number | null;
       estagioAquecimento: number;
       metodoPareamento: MetodoPareamento;
       /** Só no método `codigo`: o celular que vai parear. */
