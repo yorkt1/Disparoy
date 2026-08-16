@@ -77,6 +77,20 @@ function usePareamentoAoVivo(canalId: string | null, ativo: boolean): Canal | nu
         if (!parado && r.confirmado && r.canal.status === "conectado") {
           setConectado(r.canal);
           clearInterval(timer);
+
+          /*
+           * Começa a buscar a agenda agora, enquanto a pessoa lê "conexão
+           * bem-sucedida".
+           *
+           * A busca leva ~1 s na Evolution e o resultado fica no cache do
+           * servidor, então o download seguinte custa só a montagem da
+           * planilha. Como o gatilho é o pareamento — que acontece uma vez por
+           * canal — isso não vira carga recorrente no gateway.
+           *
+           * `void` e `catch` vazio de propósito: é adiantamento, não promessa.
+           * Se falhar, o clique no botão faz o caminho normal.
+           */
+          void contarContatosDoCanal(canalId).catch(() => undefined);
         }
       } catch {
         // Gateway mudo entre uma tentativa e outra é normal durante o
@@ -263,9 +277,37 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
       titulo: "Canal",
       celula: (c) => (
         <div className="flex items-center gap-2.5">
+          {/*
+            A foto do WhatsApp no lugar do ícone genérico.
+
+            Com vários números conectados, o ícone era o mesmo para todos e
+            "de qual WhatsApp estou disparando?" virava uma pergunta respondida
+            lendo o número dígito a dígito.
+
+            `onError` volta ao ícone: a imagem mora no nosso Storage, mas um
+            arquivo removido à mão não pode deixar um quadrado quebrado na
+            tabela.
+          */}
+          {c.fotoUrl ? (
+            <img
+              src={c.fotoUrl}
+              alt=""
+              width={32}
+              height={32}
+              loading="lazy"
+              className="size-8 shrink-0 rounded-lg object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+                e.currentTarget.nextElementSibling?.classList.remove("hidden");
+              }}
+            />
+          ) : null}
           <span
             aria-hidden
-            className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-superficie-3 text-tinta-3"
+            className={cn(
+              "flex size-8 shrink-0 items-center justify-center rounded-lg bg-superficie-3 text-tinta-3",
+              c.fotoUrl && "hidden",
+            )}
           >
             {c.tipoConexao === "api_oficial" ? (
               <BadgeCheck className="size-4" />
@@ -479,8 +521,20 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
         )}
       </div>
 
-      <ModalConectarCanal aberto={conectando} aoFechar={() => setConectando(false)} />
-      <ModalReconectarCanal canal={reconectando} aoFechar={() => setReconectando(null)} />
+      {/* Os modais recebem `extrair` em vez de refazê-lo: a espera pela agenda
+          e o tratamento de erro são os mesmos da lista. */}
+      <ModalConectarCanal
+        aberto={conectando}
+        aoFechar={() => setConectando(false)}
+        aoExtrair={extrair}
+        extraindo={extraindo}
+      />
+      <ModalReconectarCanal
+        canal={reconectando}
+        aoFechar={() => setReconectando(null)}
+        aoExtrair={extrair}
+        extraindo={extraindo}
+      />
       <ModalExcluirCanal
         canal={excluindo}
         excluindo={exclusao.isPending}
@@ -599,7 +653,17 @@ function ModalExcluirCanal({
  * na primeira vez — quem tentou pelo QR e não tinha uma segunda tela troca para
  * o código sem precisar recriar o canal.
  */
-function ModalReconectarCanal({ canal, aoFechar }: { canal: Canal | null; aoFechar: () => void }) {
+function ModalReconectarCanal({
+  canal,
+  aoFechar,
+  aoExtrair,
+  extraindo,
+}: {
+  canal: Canal | null;
+  aoFechar: () => void;
+  aoExtrair: (canal: Canal) => void;
+  extraindo: string | null;
+}) {
   const [metodo, setMetodo] = React.useState<MetodoPareamento>("qrcode");
   const [numero, setNumero] = React.useState("");
   const [sessao, setSessao] = React.useState<Pareamento | null>(null);
@@ -681,7 +745,11 @@ function ModalReconectarCanal({ canal, aoFechar }: { canal: Canal | null; aoFech
       }
     >
       {conectado ? (
-        <PareamentoConcluido canal={conectado} />
+        <PareamentoConcluido
+          canal={conectado}
+          aoBaixarContatos={() => aoExtrair(conectado)}
+          baixando={extraindo === conectado.id}
+        />
       ) : sessao ? (
         <PainelPareamento sessao={sessao} />
       ) : (
@@ -709,7 +777,17 @@ function ModalReconectarCanal({ canal, aoFechar }: { canal: Canal | null; aoFech
   );
 }
 
-function ModalConectarCanal({ aberto, aoFechar }: { aberto: boolean; aoFechar: () => void }) {
+function ModalConectarCanal({
+  aberto,
+  aoFechar,
+  aoExtrair,
+  extraindo,
+}: {
+  aberto: boolean;
+  aoFechar: () => void;
+  aoExtrair: (canal: Canal) => void;
+  extraindo: string | null;
+}) {
   const [nome, setNome] = React.useState("");
   const [metodo, setMetodo] = React.useState<MetodoPareamento>("qrcode");
   const [numero, setNumero] = React.useState("");
@@ -820,7 +898,11 @@ function ModalConectarCanal({ aberto, aoFechar }: { aberto: boolean; aoFechar: (
       }
     >
       {conectado ? (
-        <PareamentoConcluido canal={conectado} />
+        <PareamentoConcluido
+          canal={conectado}
+          aoBaixarContatos={() => aoExtrair(conectado)}
+          baixando={extraindo === conectado.id}
+        />
       ) : pareando ? (
         <PainelPareamento sessao={sessao} />
       ) : (
@@ -970,7 +1052,15 @@ function EscolhaMetodo({
  * Antes, o QR sumia da tela sem dizer se tinha funcionado, e a única forma de
  * saber era voltar para a lista e esperar.
  */
-function PareamentoConcluido({ canal }: { canal: Canal }) {
+function PareamentoConcluido({
+  canal,
+  aoBaixarContatos,
+  baixando,
+}: {
+  canal: Canal;
+  aoBaixarContatos: () => void;
+  baixando: boolean;
+}) {
   return (
     <div className="flex flex-col items-center gap-3 py-4 text-center">
       <span className="flex size-12 items-center justify-center rounded-full bg-bom/15 text-bom">
@@ -984,6 +1074,20 @@ function PareamentoConcluido({ canal }: { canal: Canal }) {
             : `${canal.nome} está conectado.`}
         </p>
       </div>
+
+      {/*
+        O download mora aqui porque é aqui que ele acontece na prática: a
+        agenda se extrai uma vez, logo depois de conectar. Deixar só na lista
+        obrigava a fechar o modal e caçar o botão na linha certa.
+
+        Quando este botão aparece, a busca já começou em segundo plano — o
+        clique costuma pegar a agenda pronta no servidor.
+      */}
+      <Botao variante="secundario" onClick={aoBaixarContatos} carregando={baixando}>
+        {!baixando && <Download aria-hidden className="size-4" />}
+        Baixar contatos
+      </Botao>
+
       <p className="max-w-sm text-xs text-tinta-3">
         Já dá para disparar por ele. Se o aparelho for desconectado no WhatsApp, o painel avisa e
         o botão Conectar volta a aparecer.
