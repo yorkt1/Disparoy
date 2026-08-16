@@ -346,8 +346,15 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
               onClick={() => extrair(c)}
               title="Baixa a agenda deste número em planilha (nome e numero)"
             >
+              {/*
+                O rótulo não muda — só o ícone.
+
+                Trocar "Contatos" por "Buscando…" faz o botão mudar de largura
+                no meio do clique, e a linha inteira da tabela dança. O giro no
+                lugar do ícone diz a mesma coisa sem mexer no layout.
+              */}
               {extraindo !== c.id && <Download aria-hidden className="size-3.5" />}
-              {extraindo === c.id ? "Buscando…" : "Contatos"}
+              Contatos
             </Botao>
           )}
           {/*
