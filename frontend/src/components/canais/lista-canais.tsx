@@ -81,13 +81,14 @@ function usePareamentoAoVivo(canalId: string | null, ativo: boolean): Canal | nu
           clearInterval(timer);
 
           /*
-           * Começa a buscar a agenda agora, enquanto a pessoa lê "conexão
-           * bem-sucedida".
+           * Cutuca a agenda agora, enquanto a pessoa lê "conexão bem-sucedida".
            *
-           * A busca leva ~1 s na Evolution e o resultado fica no cache do
-           * servidor, então o download seguinte custa só a montagem da
-           * planilha. Como o gatilho é o pareamento — que acontece uma vez por
-           * canal — isso não vira carga recorrente no gateway.
+           * Adiantamento fraco, e de propósito: neste instante o WhatsApp
+           * quase sempre ainda está sincronizando, a Evolution responde vazio e
+           * vazio NÃO entra no cache do servidor. Então isto raramente deixa o
+           * download seguinte pronto — só o deixa quando a agenda por acaso já
+           * chegou. Vale o custo porque é uma chamada por pareamento, não carga
+           * recorrente, e quando acerta economiza os ~860 ms inteiros.
            *
            * `void` e `catch` vazio de propósito: é adiantamento, não promessa.
            * Se falhar, o clique no botão faz o caminho normal.
@@ -223,10 +224,31 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
     const ate = Date.now() + 90_000;
     try {
       let disponiveis = 0;
+      /*
+       * Espera crescente, não intervalo fixo.
+       *
+       * Cada volta custa a chamada MAIS o sono: com 2,5 s fixos e ~860 ms de
+       * ida e volta ao gateway, o laço batia ~27 vezes na Evolution por
+       * pareamento. E nenhuma delas aproveita o cache do servidor: agenda vazia
+       * não entra no cache de propósito, então este é o único caminho da tela
+       * em que todo acerto é impossível por construção.
+       *
+       * O ritmo fixo erra dos dois lados. A agenda quase sempre chega nos
+       * primeiros segundos, e é lá que a espera precisa ser curta; passado meio
+       * minuto ela provavelmente não vem, e continuar perguntando de 2,5 em
+       * 2,5 s é só carga. Começar em 1 s e crescer até 10 s dá uma checagem a
+       * mais nos primeiros 10 s e corta o total para ~12 chamadas.
+       */
+      let espera = 1000;
       while (Date.now() < ate) {
         disponiveis = (await contarContatosDoCanal(canal.id)).total;
         if (disponiveis > 0) break;
-        await new Promise((r) => setTimeout(r, 2500));
+        // O `while` só reavalia depois de acordar: sem o corte, a última espera
+        // de 10 s empurraria para 100 s o teto que a tela promete em 90.
+        const restante = ate - Date.now();
+        if (restante <= 0) break;
+        await new Promise((r) => setTimeout(r, Math.min(espera, restante)));
+        espera = Math.min(Math.round(espera * 1.6), 10_000);
       }
 
       if (disponiveis === 0) {
@@ -670,6 +692,14 @@ function ModalReconectarCanal({
   const [numero, setNumero] = React.useState("");
   const [sessao, setSessao] = React.useState<Pareamento | null>(null);
   const [erro, setErro] = React.useState<string | null>(null);
+  /**
+   * Texto do 409 quando o canal ainda está conectado.
+   *
+   * A API recusa reconectar por cima de uma sessão viva porque isso reinicia a
+   * instância e corta o disparo em andamento. Quem decide se vale a pena é o
+   * operador, então a recusa vira uma pergunta em vez de um erro.
+   */
+  const [confirmarQueda, setConfirmarQueda] = React.useState<string | null>(null);
   const reconexao = useReconectarCanal();
 
   const conectado = usePareamentoAoVivo(canal?.id ?? null, sessao !== null);
@@ -680,9 +710,10 @@ function ModalReconectarCanal({
     setNumero("");
     setSessao(null);
     setErro(null);
+    setConfirmarQueda(null);
   }
 
-  async function solicitar() {
+  async function solicitar(forcar = false) {
     if (!canal) return;
     setErro(null);
 
@@ -697,14 +728,22 @@ function ModalReconectarCanal({
     }
 
     try {
+      setConfirmarQueda(null);
       setSessao(
         await reconexao.mutateAsync({
           id: canal.id,
           metodoPareamento: metodo,
           ...(numeroPareamento ? { numeroPareamento } : {}),
+          ...(forcar ? { forcar: true } : {}),
         }),
       );
     } catch (e) {
+      // 409 aqui não é falha: é a API pedindo confirmação para derrubar a
+      // sessão. Tratar como erro esconderia a única saída que o operador tem.
+      if (e instanceof ErroApi && e.status === 409) {
+        setConfirmarQueda(e.message);
+        return;
+      }
       setErro(mensagemDe(e, "Não foi possível abrir o pareamento."));
     }
   }
@@ -739,8 +778,22 @@ function ModalReconectarCanal({
             <Botao variante="fantasma" onClick={fechar}>
               Cancelar
             </Botao>
-            <Botao variante="primario" onClick={solicitar} carregando={reconexao.isPending}>
-              {metodo === "codigo" ? "Gerar código" : "Gerar QR Code"}
+            {/*
+              `() => void solicitar()` e não `solicitar`: como referência direta,
+              o React passa o evento de clique no primeiro parâmetro — e um
+              MouseEvent é truthy, então todo clique viraria `forcar: true` e a
+              confirmação nunca apareceria.
+            */}
+            <Botao
+              variante={confirmarQueda ? "perigo" : "primario"}
+              onClick={() => void solicitar(confirmarQueda !== null)}
+              carregando={reconexao.isPending}
+            >
+              {confirmarQueda
+                ? "Reconectar mesmo assim"
+                : metodo === "codigo"
+                  ? "Gerar código"
+                  : "Gerar QR Code"}
             </Botao>
           </>
         )
@@ -775,6 +828,13 @@ function ModalReconectarCanal({
               inputMode="tel"
               required
             />
+          )}
+
+          {confirmarQueda && (
+            <div role="alert" className="rounded-xl border border-aviso/35 bg-aviso/10 p-4">
+              <p className="text-sm font-medium text-tinta">Este canal ainda está conectado</p>
+              <p className="mt-1 text-sm text-tinta-2">{confirmarQueda}</p>
+            </div>
           )}
 
           <MensagemErro>{erro}</MensagemErro>

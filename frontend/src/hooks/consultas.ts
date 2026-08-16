@@ -334,7 +334,13 @@ export function useCriarCanal() {
 export function useReconectarCanal() {
   const invalidar = useInvalidar();
   return useMutation({
-    mutationFn: (v: { id: string; metodoPareamento: MetodoPareamento; numeroPareamento?: string }) => {
+    mutationFn: (v: {
+      id: string;
+      metodoPareamento: MetodoPareamento;
+      numeroPareamento?: string;
+      /** Confirma derrubar uma sessão viva; sem isto a API responde 409. */
+      forcar?: boolean;
+    }) => {
       const { id, ...corpo } = v;
       return api.post<Pareamento>(`/canais/${id}/reconectar`, corpo);
     },
