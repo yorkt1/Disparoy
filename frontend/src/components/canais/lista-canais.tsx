@@ -8,7 +8,9 @@ import {
   Plus,
   PlugZap,
   QrCode,
+  RefreshCw,
   Smartphone,
+  TimerOff,
   Trash2,
 } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
@@ -46,8 +48,8 @@ function mensagemDe(e: unknown, padrao: string): string {
  * Enquanto o QR/código está na tela, pergunta ao gateway se já pareou.
  *
  * Sem isto, descobrir que o número conectou dependia de uma de duas coisas:
- * o webhook `CONNECTION_UPDATE` — que nunca chegou nenhuma vez neste sistema,
- * porque exige o gateway alcançar a API — ou a vigilância do worker, que roda
+ * o webhook `CONNECTION_UPDATE` — que nunca chegou nenhuma vez neste sistema,
+ * porque exige o gateway alcançar a API — ou a vigilância do worker, que roda
  * de minuto em minuto. Daí os ~40 segundos olhando para um QR já escaneado,
  * sem saber se tinha dado certo.
  *
@@ -111,7 +113,7 @@ function usePareamentoAoVivo(canalId: string | null, ativo: boolean): Canal | nu
  * Confere sozinho, ao abrir a tela, os canais sem verificação recente.
  *
  * Substituiu o botão "Verificar". Um botão transfere para o operador a tarefa
- * de desconfiar do que a tela mostra — e a tela existe justamente para ele não
+ * de desconfiar do que a tela mostra — e a tela existe justamente para ele não
  * precisar desconfiar. Quem abre Canais quer saber o estado AGORA.
  *
  * Três cuidados que o botão não precisava ter:
@@ -121,7 +123,7 @@ function usePareamentoAoVivo(canalId: string | null, ativo: boolean): Canal | nu
  *  - Um de cada vez, em série. Em paralelo, dez canais viram dez requisições
  *    simultâneas ao gateway, que é exatamente como se toma 429.
  *  - Uma tentativa por montagem, guardada em `ref`. Quando o gateway não
- *    responde nada é gravado, o canal continua desatualizado — e sem esta
+ *    responde nada é gravado, o canal continua desatualizado — e sem esta
  *    trava a tela tentaria de novo em loop infinito.
  */
 function useVerificacaoAutomatica(canais: Canal[]): boolean {
@@ -184,7 +186,7 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
   /*
    * `mudarStatus` saiu junto com o botão Desconectar.
    *
-   * Ele gravava o status direto no banco sem tocar na sessão do gateway — era
+   * Ele gravava o status direto no banco sem tocar na sessão do gateway — era
    * o caminho mais curto para o painel voltar a mentir sobre o estado de um
    * canal. Quem muda o estado agora é o WhatsApp do dono; o painel confere.
    */
@@ -329,7 +331,7 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
         c.numero ? (
           <span className="tabular text-tinta-2">{formatarTelefone(c.numero)}</span>
         ) : (
-          // Antes de parear ninguém sabe qual é — inclusive o sistema.
+          // Antes de parear ninguém sabe qual é — inclusive o sistema.
           <span className="text-xs text-tinta-3">aguardando pareamento</span>
         ),
     },
@@ -340,7 +342,7 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
       /*
        * Só o número, sem "/50".
        *
-       * O teto diário deixou de existir por padrão — mostrar `0/50` anunciava
+       * O teto diário deixou de existir por padrão — mostrar `0/50` anunciava
        * um limite que não é aplicado, e um limite falso é pior que limite
        * nenhum: leva a planejar a campanha em torno dele.
        */
@@ -359,7 +361,7 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
       /*
        * O selo sai de `apresentarCanal()`, não de `c.status` cru. O status
        * gravado é cache do webhook, e foi ele que produziu um canal "Conectado"
-       * que nunca pareou — a tela afirmando o que o próprio dado negava.
+       * que nunca pareou — a tela afirmando o que o próprio dado negava.
        */
       celula: (c) => {
         const a = apresentarCanal(c);
@@ -430,7 +432,7 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
           )}
           {/*
             Não existe mais "Desconectar".
-            Desconectar é ato do dono do aparelho, no WhatsApp dele — o painel
+            Desconectar é ato do dono do aparelho, no WhatsApp dele — o painel
             não derruba a sessão de ninguém. O que o painel faz é oferecer o
             caminho de volta: quando a sessão cai, aparece "Conectar".
 
@@ -549,7 +551,7 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
  * Confirmação de exclusão que mostra o que vai junto.
  *
  * A API recusava excluir canal usado em campanha e mandava "desconecte em vez
- * de excluir" — o canal ficava na lista para sempre, sem saída pelo produto, e
+ * de excluir" — o canal ficava na lista para sempre, sem saída pelo produto, e
  * o operador só descobria o problema DEPOIS de clicar.
  *
  * Agora a verificação vem antes: as campanhas vinculadas são carregadas ao
@@ -615,7 +617,7 @@ function ModalExcluirCanal({
               {campanhas.length === 1 ? "" : "m"} este canal
               {ativas.length > 0 && (
                 <>
-                  {" — "}
+                  {" — "}
                   <strong className="text-critico">
                     {ativas.length} ainda {ativas.length === 1 ? "vai disparar" : "vão disparar"}
                   </strong>
@@ -634,7 +636,7 @@ function ModalExcluirCanal({
             </ul>
 
             <p className="text-xs text-tinta-3">
-              Elas continuam existindo e o histórico do que já foi enviado é preservado — some
+              Elas continuam existindo e o histórico do que já foi enviado é preservado — some
               apenas o vínculo com este canal. Campanha que ainda não disparou precisará de outro
               canal para sair.
             </p>
@@ -650,7 +652,7 @@ function ModalExcluirCanal({
  *
  * Separado da criação porque o canal já existe: aqui não há nome nem
  * aquecimento a escolher, só COMO parear. O método pode ser diferente do usado
- * na primeira vez — quem tentou pelo QR e não tinha uma segunda tela troca para
+ * na primeira vez — quem tentou pelo QR e não tinha uma segunda tela troca para
  * o código sem precisar recriar o canal.
  */
 function ModalReconectarCanal({
@@ -751,7 +753,12 @@ function ModalReconectarCanal({
           baixando={extraindo === conectado.id}
         />
       ) : sessao ? (
-        <PainelPareamento sessao={sessao} />
+        // Gerar de novo aqui é literalmente refazer o mesmo pedido.
+        <PainelPareamento
+          sessao={sessao}
+          aoGerarNovo={() => void solicitar()}
+          gerando={reconexao.isPending}
+        />
       ) : (
         <div className="flex flex-col gap-4">
           <EscolhaMetodo metodo={metodo} aoMudar={setMetodo} />
@@ -764,7 +771,7 @@ function ModalReconectarCanal({
               value={numero || (canal?.numero ? formatarTelefone(canal.numero) : "")}
               onChange={(e) => setNumero(e.target.value)}
               placeholder="+55 48 91234-5678"
-              dica="O celular onde o WhatsApp está logado — é nele que o código será digitado."
+              dica="O celular onde o WhatsApp está logado — é nele que o código será digitado."
               inputMode="tel"
               required
             />
@@ -800,9 +807,49 @@ function ModalConectarCanal({
   // Enquanto o QR/código está na tela, pergunta ao gateway a cada 3 s.
   const conectado = usePareamentoAoVivo(canalId, sessao !== null);
 
-  // Dois caracteres é o mínimo que a API aceita — o mesmo gatilho da revelação
+  // Dois caracteres é o mínimo que a API aceita — o mesmo gatilho da revelação
   // e da validação, para a tela não abrir opções que o servidor recusaria.
   const nomeValido = nome.trim().length >= 2;
+
+  /**
+   * Abre um pareamento novo para o canal que acabou de ser criado.
+   *
+   * Vai por `reconectar` e não por `criar`: o canal já existe no banco, e
+   * recriá-lo deixaria um canal órfão a cada código expirado.
+   */
+  const reconexao = useReconectarCanal();
+  const [regerando, setRegerando] = React.useState(false);
+
+  async function regerar() {
+    if (!canalId) return;
+
+    // O número já passou pela validação ao abrir o pareamento; aqui só é
+    // normalizado de novo porque a união exige o estreitamento.
+    let numeroPareamento: string | undefined;
+    if (metodo === "codigo") {
+      const n = normalizarTelefone(numero);
+      if (!n.valido) {
+        setErro("Informe o número do WhatsApp com DDD, no formato +55 48 91234-5678.");
+        return;
+      }
+      numeroPareamento = n.e164;
+    }
+
+    setRegerando(true);
+    try {
+      setSessao(
+        await reconexao.mutateAsync({
+          id: canalId,
+          metodoPareamento: metodo,
+          ...(numeroPareamento ? { numeroPareamento } : {}),
+        }),
+      );
+    } catch (e) {
+      setErro(mensagemDe(e, "Não foi possível gerar um novo código."));
+    } finally {
+      setRegerando(false);
+    }
+  }
 
   function fechar() {
     aoFechar();
@@ -834,7 +881,7 @@ function ModalConectarCanal({
         nome,
         // Sem teto e sem estágio de aquecimento: o campo prometia "até 50
         // msgs/dia" de um limite que deixou de ser aplicado, e limite falso é
-        // pior que limite nenhum — leva a planejar a campanha em torno dele.
+        // pior que limite nenhum — leva a planejar a campanha em torno dele.
         limiteDiario: null,
         estagioAquecimento: 0,
         metodoPareamento: metodo,
@@ -904,7 +951,13 @@ function ModalConectarCanal({
           baixando={extraindo === conectado.id}
         />
       ) : pareando ? (
-        <PainelPareamento sessao={sessao} />
+        <PainelPareamento
+          sessao={sessao}
+          // Gerar de novo é pedir o mesmo pareamento outra vez: o canal já
+          // existe, então este caminho vai por `reconectar`, não recria nada.
+          aoGerarNovo={() => void regerar()}
+          gerando={regerando}
+        />
       ) : (
         <div className="flex flex-col gap-4">
           <Campo
@@ -922,7 +975,7 @@ function ModalConectarCanal({
 
             Uma pergunta de cada vez: quem abre o modal decide o nome, e só
             então escolhe como parear. Mostrar tudo de uma vez faz a tela
-            parecer mais trabalho do que é — são dois campos.
+            parecer mais trabalho do que é — são dois campos.
 
             O `prefers-reduced-motion` global já anula a transição para quem
             pediu menos movimento; não é preciso tratar aqui.
@@ -937,7 +990,7 @@ function ModalConectarCanal({
                   value={numero}
                   onChange={(e) => setNumero(e.target.value)}
                   placeholder="+55 48 91234-5678"
-                  dica="O celular onde o WhatsApp está logado — é nele que o código será digitado."
+                  dica="O celular onde o WhatsApp está logado — é nele que o código será digitado."
                   inputMode="tel"
                   required
                 />
@@ -955,8 +1008,8 @@ function ModalConectarCanal({
 /**
  * Revela o conteúdo com altura animada.
  *
- * `grid-rows-[0fr] —  [1fr]` em vez de `max-height`: com max-height é preciso
- * chutar um valor maior que o conteúdo, e o chute sempre erra — ou corta o
+ * `grid-rows-[0fr] → [1fr]` em vez de `max-height`: com max-height é preciso
+ * chutar um valor maior que o conteúdo, e o chute sempre erra — ou corta o
  * texto, ou deixa a animação lenta no começo por causa do espaço que não
  * existe. O grid anima até a altura real, qualquer que seja ela.
  *
@@ -982,7 +1035,7 @@ function Revelar({ visivel, children }: { visivel: boolean; children: React.Reac
  * Escolha entre ler o QR e digitar um código.
  *
  * Existem porque resolvem situações diferentes, não porque uma é melhor: o QR
- * exige DUAS telas — o painel mostrando e o celular lendo. Quem abre o painel
+ * exige DUAS telas — o painel mostrando e o celular lendo. Quem abre o painel
  * no próprio celular, ou opera um número que está com outra pessoa, não tem
  * como usá-lo. Aí o código de 8 dígitos é o único caminho.
  */
@@ -1048,7 +1101,7 @@ function EscolhaMetodo({
 /**
  * Confirmação do pareamento.
  *
- * Aparece sozinha assim que o gateway confirma — sem o operador clicar em nada.
+ * Aparece sozinha assim que o gateway confirma — sem o operador clicar em nada.
  * Antes, o QR sumia da tela sem dizer se tinha funcionado, e a única forma de
  * saber era voltar para a lista e esperar.
  */
@@ -1096,8 +1149,90 @@ function PareamentoConcluido({
   );
 }
 
+/**
+ * Segundos restantes até o pareamento expirar. `0` = expirou.
+ *
+ * O QR vale ~1 minuto e o código alguns minutos. Sem contagem, a pessoa ficava
+ * olhando um código morto sem saber — escaneava, não acontecia nada, e a
+ * conclusão natural era que o sistema estava quebrado.
+ */
+function useTempoRestante(expiraEm: string | null): number {
+  const calcular = React.useCallback(
+    () => (expiraEm ? Math.max(0, Math.ceil((new Date(expiraEm).getTime() - Date.now()) / 1000)) : 0),
+    [expiraEm],
+  );
+  const [restante, setRestante] = React.useState(calcular);
+
+  React.useEffect(() => {
+    setRestante(calcular());
+    const t = setInterval(() => setRestante(calcular()), 1000);
+    return () => clearInterval(t);
+  }, [calcular]);
+
+  return restante;
+}
+
+/** "1:05" — o formato que se lê de relance num contador. */
+function comoRelogio(segundos: number): string {
+  return `${Math.floor(segundos / 60)}:${String(segundos % 60).padStart(2, "0")}`;
+}
+
 /** O QR ou o código, conforme o que a Evolution devolveu. */
-function PainelPareamento({ sessao }: { sessao: Pareamento }) {
+function PainelPareamento({
+  sessao,
+  aoGerarNovo,
+  gerando,
+}: {
+  sessao: Pareamento;
+  aoGerarNovo: () => void;
+  gerando: boolean;
+}) {
+  const restante = useTempoRestante(sessao.expiraEm);
+
+  /*
+   * Expirado: o código sai da tela.
+   *
+   * Deixá-lo visível com um aviso ao lado convidaria a tentar de novo com algo
+   * que já não funciona. Some, e no lugar fica o único caminho que resolve.
+   */
+  if ((sessao.qr || sessao.codigo) && restante === 0) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-4 text-center">
+        <span className="flex size-12 items-center justify-center rounded-full bg-aviso/15 text-aviso">
+          <TimerOff aria-hidden className="size-6" />
+        </span>
+        <div>
+          <p className="text-sm font-medium text-tinta">
+            {sessao.codigo ? "O código expirou" : "O QR Code expirou"}
+          </p>
+          <p className="mt-1 max-w-sm text-sm text-tinta-2">
+            {sessao.codigo
+              ? "Códigos de pareamento valem por poucos minutos. Gere outro para continuar."
+              : "O QR Code do WhatsApp vale cerca de um minuto. Gere outro para continuar."}
+          </p>
+        </div>
+        <Botao variante="primario" onClick={aoGerarNovo} carregando={gerando}>
+          {!gerando && <RefreshCw aria-hidden className="size-4" />}
+          Gerar {sessao.codigo ? "novo código" : "novo QR Code"}
+        </Botao>
+      </div>
+    );
+  }
+
+  return <ConteudoPareamento sessao={sessao} restante={restante} />;
+}
+
+/** Contador discreto: vira aviso nos últimos 15 segundos. */
+function Contador({ restante }: { restante: number }) {
+  const acabando = restante <= 15;
+  return (
+    <p className={cn("tabular text-xs", acabando ? "text-aviso" : "text-tinta-3")}>
+      {acabando ? "Expira em" : "Válido por"} {comoRelogio(restante)}
+    </p>
+  );
+}
+
+function ConteudoPareamento({ sessao, restante }: { sessao: Pareamento; restante: number }) {
   if (sessao.codigo) {
     return (
       <div className="flex flex-col items-center gap-3 py-2">
@@ -1109,7 +1244,7 @@ function PainelPareamento({ sessao }: { sessao: Pareamento }) {
         <ol className="max-w-sm list-decimal space-y-1 pl-5 text-xs text-tinta-2">
           <li>No celular, abra o WhatsApp.</li>
           <li>
-            Toque em <strong className="text-tinta">Aparelhos conectados</strong> — {" "}
+            Toque em <strong className="text-tinta">Aparelhos conectados</strong> →{" "}
             <strong className="text-tinta">Conectar um aparelho</strong>.
           </li>
           <li>
@@ -1117,9 +1252,9 @@ function PainelPareamento({ sessao }: { sessao: Pareamento }) {
             o código acima.
           </li>
         </ol>
-        <p className="text-center text-xs text-tinta-3">
-          O código vale por poucos minutos. Se expirar, gere outro pela lista de canais.
-        </p>
+        {/* O contador substitui "vale por poucos minutos": o número exato tira
+            a dúvida de quem está com o celular na mão. */}
+        <Contador restante={restante} />
       </div>
     );
   }
@@ -1134,14 +1269,12 @@ function PainelPareamento({ sessao }: { sessao: Pareamento }) {
           height={220}
           className="rounded-lg bg-white p-2"
         />
-        <p className="text-center text-xs text-tinta-3">
-          O código expira em cerca de 1 minuto. Se expirar, gere outro pela lista de canais.
-        </p>
+        <Contador restante={restante} />
       </div>
     );
   }
 
-  // Canal criado, pareamento não. `aviso` explica o porquê — e sem esta tela o
+  // Canal criado, pareamento não. `aviso` explica o porquê — e sem esta tela o
   // operador ficaria olhando um modal vazio sem saber o que deu errado.
   return (
     <div className="rounded-xl border border-aviso/35 bg-aviso/10 p-4">
@@ -1149,7 +1282,7 @@ function PainelPareamento({ sessao }: { sessao: Pareamento }) {
       <p className="mt-1 text-sm text-tinta-2">
         {sessao.aviso ?? "O gateway não respondeu com QR Code nem com código."}
       </p>
-      <p className="mt-1 text-xs text-tinta-3">Tente de novo pelo botão Reconectar na lista.</p>
+      <p className="mt-1 text-xs text-tinta-3">Tente de novo pelo botão Conectar na lista.</p>
     </div>
   );
 }
