@@ -3,6 +3,7 @@ import * as React from "react";
 
 import {
   BadgeCheck,
+  CheckCircle2,
   Download,
   KeyRound,
   Plus,
@@ -10,7 +11,6 @@ import {
   QrCode,
   Smartphone,
   Trash2,
-  Unplug,
 } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { Campo, MensagemErro, Selecao } from "@/components/ui/campos";
@@ -30,7 +30,6 @@ import {
 import { cn, formatarDataHora, formatarNumero, formatarTelefone } from "@/lib/formato";
 import { baixarArquivo, ErroApi } from "@/lib/api";
 import {
-  useAjustarCanal,
   useCriarCanal,
   useExcluirCanal,
   useReconectarCanal,
@@ -43,6 +42,57 @@ import {
 function mensagemDe(e: unknown, padrao: string): string {
   if (e instanceof ErroApi) return e.primeiroCampo ?? e.message;
   return e instanceof Error ? e.message : padrao;
+}
+
+/**
+ * Enquanto o QR/código está na tela, pergunta ao gateway se já pareou.
+ *
+ * Sem isto, descobrir que o número conectou dependia de uma de duas coisas:
+ * o webhook `CONNECTION_UPDATE` — que nunca chegou nenhuma vez neste sistema,
+ * porque exige o gateway alcançar a API — ou a vigilância do worker, que roda
+ * de minuto em minuto. Daí os ~40 segundos olhando para um QR já escaneado,
+ * sem saber se tinha dado certo.
+ *
+ * Perguntar direto ao gateway resolve em segundos e não depende de nenhuma das
+ * duas. O intervalo de 3 s é curto porque a janela é curta: são poucos
+ * segundos entre escanear e confirmar, e ninguém fica nessa tela por muito
+ * tempo.
+ */
+function usePareamentoAoVivo(canalId: string | null, ativo: boolean): Canal | null {
+  const verificacao = useVerificarCanal();
+  const [conectado, setConectado] = React.useState<Canal | null>(null);
+
+  const verificar = React.useRef(verificacao.mutateAsync);
+  verificar.current = verificacao.mutateAsync;
+
+  React.useEffect(() => {
+    if (!ativo || !canalId) {
+      setConectado(null);
+      return;
+    }
+
+    let parado = false;
+    const timer = setInterval(async () => {
+      if (parado) return;
+      try {
+        const r = await verificar.current(canalId);
+        if (!parado && r.confirmado && r.canal.status === "conectado") {
+          setConectado(r.canal);
+          clearInterval(timer);
+        }
+      } catch {
+        // Gateway mudo entre uma tentativa e outra é normal durante o
+        // pareamento; a próxima rodada tenta de novo.
+      }
+    }, 3000);
+
+    return () => {
+      parado = true;
+      clearInterval(timer);
+    };
+  }, [canalId, ativo]);
+
+  return conectado;
 }
 
 /**
@@ -112,30 +162,20 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
   const [excluindo, setExcluindo] = React.useState<Canal | null>(null);
   const { mostrar } = useToast();
 
-  const mudanca = useAjustarCanal();
   const exclusao = useExcluirCanal();
   // Roda em silêncio: o retorno é ignorado de propósito, a tela não anuncia.
   useVerificacaoAutomatica(canais);
-  const emAcao = mudanca.isPending || exclusao.isPending ? (mudanca.variables?.id ?? exclusao.variables) : null;
+  const emAcao = exclusao.isPending ? (exclusao.variables?.id ?? null) : null;
 
   const filtrados = canais.filter((c) => status === "todos" || c.status === status);
 
-  async function mudarStatus(canal: Canal, novo: "conectado" | "desconectado") {
-    try {
-      await mudanca.mutateAsync({ id: canal.id, status: novo });
-      mostrar({
-        tipo: "info",
-        titulo: novo === "conectado" ? "Canal reconectado" : "Canal desconectado",
-        descricao: canal.nome,
-      });
-    } catch (e) {
-      mostrar({
-        tipo: "erro",
-        titulo: "Não foi possível alterar o canal",
-        descricao: mensagemDe(e, "Tente novamente."),
-      });
-    }
-  }
+  /*
+   * `mudarStatus` saiu junto com o botão Desconectar.
+   *
+   * Ele gravava o status direto no banco sem tocar na sessão do gateway — era
+   * o caminho mais curto para o painel voltar a mentir sobre o estado de um
+   * canal. Quem muda o estado agora é o WhatsApp do dono; o painel confere.
+   */
 
   /**
    * Baixa a agenda do número em planilha.
@@ -300,25 +340,16 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
               Contatos
             </Botao>
           )}
-          {c.status === "conectado" ? (
-            <Botao
-              tamanho="sm"
-              variante="fantasma"
-              disabled={emAcao === c.id}
-              onClick={() => mudarStatus(c, "desconectado")}
-            >
-              <Unplug aria-hidden className="size-3.5" />
-              Desconectar
-            </Botao>
-          ) : (
-            /*
-             * Abre um pareamento de verdade.
-             *
-             * Este botão chamava `PATCH /canais/:id { status: "conectado" }` —
-             * ele apenas GRAVAVA "conectado" no banco, sem parear coisa
-             * nenhuma. É a origem mais provável do canal que aparecia conectado
-             * sem número: um clique aqui bastava para o painel passar a mentir.
-             */
+          {/*
+            Não existe mais "Desconectar".
+            Desconectar é ato do dono do aparelho, no WhatsApp dele — o painel
+            não derruba a sessão de ninguém. O que o painel faz é oferecer o
+            caminho de volta: quando a sessão cai, aparece "Conectar".
+
+            O botão antigo também mentia: chamava `PATCH { status }`, que só
+            GRAVAVA o estado sem tocar na sessão real.
+          */}
+          {c.status !== "conectado" && (
             <Botao
               tamanho="sm"
               variante="fantasma"
@@ -326,7 +357,7 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
               onClick={() => setReconectando(c)}
             >
               <PlugZap aria-hidden className="size-3.5" />
-              Reconectar
+              Conectar
             </Botao>
           )}
           <Botao
@@ -529,6 +560,8 @@ function ModalReconectarCanal({ canal, aoFechar }: { canal: Canal | null; aoFech
   const [erro, setErro] = React.useState<string | null>(null);
   const reconexao = useReconectarCanal();
 
+  const conectado = usePareamentoAoVivo(canal?.id ?? null, sessao !== null);
+
   function fechar() {
     aoFechar();
     setMetodo("qrcode");
@@ -569,21 +602,25 @@ function ModalReconectarCanal({ canal, aoFechar }: { canal: Canal | null; aoFech
       aberto={canal !== null}
       aoFechar={fechar}
       titulo={
-        sessao
-          ? sessao.codigo
-            ? "Digite o código no WhatsApp"
-            : "Escaneie o QR Code"
-          : `Reconectar ${canal?.nome ?? ""}`
+        conectado
+          ? "Pronto"
+          : sessao
+            ? sessao.codigo
+              ? "Digite o código no WhatsApp"
+              : "Escaneie o QR Code"
+            : `Conectar ${canal?.nome ?? ""}`
       }
       descricao={
-        sessao
-          ? "WhatsApp > Aparelhos conectados > Conectar um aparelho."
-          : "O canal só volta a enviar depois que o aparelho parear de novo."
+        conectado
+          ? undefined
+          : sessao
+            ? "WhatsApp > Aparelhos conectados > Conectar um aparelho."
+            : "O canal só volta a enviar depois que o aparelho parear de novo."
       }
       rodape={
         sessao ? (
           <Botao variante="primario" onClick={fechar}>
-            Concluir
+            {conectado ? "Concluir" : "Fechar"}
           </Botao>
         ) : (
           <>
@@ -597,7 +634,9 @@ function ModalReconectarCanal({ canal, aoFechar }: { canal: Canal | null; aoFech
         )
       }
     >
-      {sessao ? (
+      {conectado ? (
+        <PareamentoConcluido canal={conectado} />
+      ) : sessao ? (
         <PainelPareamento sessao={sessao} />
       ) : (
         <div className="flex flex-col gap-4">
@@ -630,9 +669,13 @@ function ModalConectarCanal({ aberto, aoFechar }: { aberto: boolean; aoFechar: (
   const [metodo, setMetodo] = React.useState<MetodoPareamento>("qrcode");
   const [numero, setNumero] = React.useState("");
   const [sessao, setSessao] = React.useState<Pareamento | null>(null);
+  const [canalId, setCanalId] = React.useState<string | null>(null);
   const [erro, setErro] = React.useState<string | null>(null);
   const { mostrar } = useToast();
   const criacao = useCriarCanal();
+
+  // Enquanto o QR/código está na tela, pergunta ao gateway a cada 3 s.
+  const conectado = usePareamentoAoVivo(canalId, sessao !== null);
 
   function fechar() {
     aoFechar();
@@ -641,6 +684,7 @@ function ModalConectarCanal({ aberto, aoFechar }: { aberto: boolean; aoFechar: (
     setMetodo("qrcode");
     setNumero("");
     setSessao(null);
+    setCanalId(null);
     setErro(null);
   }
 
@@ -668,6 +712,7 @@ function ModalConectarCanal({ aberto, aoFechar }: { aberto: boolean; aoFechar: (
         ...(numeroPareamento ? { numeroPareamento } : {}),
       });
       setSessao(r);
+      setCanalId(r.canal.id);
       mostrar({
         tipo: r.qr || r.codigo ? "info" : "aviso",
         titulo: "Canal criado",
@@ -691,21 +736,25 @@ function ModalConectarCanal({ aberto, aoFechar }: { aberto: boolean; aoFechar: (
       aberto={aberto}
       aoFechar={fechar}
       titulo={
-        pareando
-          ? sessao.codigo
-            ? "Digite o código no WhatsApp"
-            : "Escaneie o QR Code"
-          : "Conectar novo canal"
+        conectado
+          ? "Pronto"
+          : pareando
+            ? sessao.codigo
+              ? "Digite o código no WhatsApp"
+              : "Escaneie o QR Code"
+            : "Conectar novo canal"
       }
       descricao={
-        pareando
-          ? "WhatsApp > Aparelhos conectados > Conectar um aparelho."
-          : "Dê um nome ao canal e escolha como o número vai parear."
+        conectado
+          ? undefined
+          : pareando
+            ? "WhatsApp > Aparelhos conectados > Conectar um aparelho."
+            : "Dê um nome ao canal e escolha como o número vai parear."
       }
       rodape={
         pareando ? (
           <Botao variante="primario" onClick={fechar}>
-            Concluir
+            {conectado ? "Concluir" : "Fechar"}
           </Botao>
         ) : (
           <>
@@ -719,7 +768,9 @@ function ModalConectarCanal({ aberto, aoFechar }: { aberto: boolean; aoFechar: (
         )
       }
     >
-      {pareando ? (
+      {conectado ? (
+        <PareamentoConcluido canal={conectado} />
+      ) : pareando ? (
         <PainelPareamento sessao={sessao} />
       ) : (
         <div className="flex flex-col gap-4">
@@ -841,6 +892,35 @@ function EscolhaMetodo({
         })}
       </div>
     </fieldset>
+  );
+}
+
+/**
+ * Confirmação do pareamento.
+ *
+ * Aparece sozinha assim que o gateway confirma — sem o operador clicar em nada.
+ * Antes, o QR sumia da tela sem dizer se tinha funcionado, e a única forma de
+ * saber era voltar para a lista e esperar.
+ */
+function PareamentoConcluido({ canal }: { canal: Canal }) {
+  return (
+    <div className="flex flex-col items-center gap-3 py-4 text-center">
+      <span className="flex size-12 items-center justify-center rounded-full bg-bom/15 text-bom">
+        <CheckCircle2 aria-hidden className="size-6" />
+      </span>
+      <div>
+        <p className="text-sm font-medium text-tinta">Conexão bem-sucedida</p>
+        <p className="mt-1 text-sm text-tinta-2">
+          {canal.numero
+            ? `${canal.nome} está conectado com o número ${formatarTelefone(canal.numero)}.`
+            : `${canal.nome} está conectado.`}
+        </p>
+      </div>
+      <p className="max-w-sm text-xs text-tinta-3">
+        Já dá para disparar por ele. Se o aparelho for desconectado no WhatsApp, o painel avisa e
+        o botão Conectar volta a aparecer.
+      </p>
+    </div>
   );
 }
 
