@@ -27,6 +27,7 @@ import {
 import { cn, formatarDataHora, formatarNumero, formatarTelefone } from "@/lib/formato";
 import { baixarArquivo, ErroApi } from "@/lib/api";
 import {
+  contarContatosDoCanal,
   useCriarCanal,
   useExcluirCanal,
   useReconectarCanal,
@@ -181,27 +182,55 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
    * cabeçalho do modelo de importação, para poder voltar por cima depois de
    * editado no Excel.
    */
+  /**
+   * Espera a agenda chegar antes de baixar.
+   *
+   * Logo depois do pareamento o WhatsApp ainda está sincronizando os contatos
+   * para o gateway, que responde uma lista VAZIA sem erro nenhum. Baixar nesse
+   * instante produzia uma planilha em branco e a mensagem "nenhum contato na
+   * agenda deste número" — falsa, porque a agenda existe e só não tinha
+   * chegado.
+   *
+   * Então o botão fica girando e a contagem é consultada até vir algo. O teto
+   * de 90 s existe porque a espera precisa terminar de algum jeito: um número
+   * recém-criado pode realmente ter zero contatos, e girar para sempre seria
+   * trocar uma mentira por outra.
+   */
   async function extrair(canal: Canal) {
     setExtraindo(canal.id);
-    // Aviso imediato: entre o clique e o arquivo há a ida à Evolution, e sem
-    // isto o primeiro sinal de vida só chega quando o download termina.
     mostrar({
       tipo: "info",
       titulo: "Buscando os contatos no WhatsApp…",
       descricao: "A agenda vem do aparelho conectado; pode levar alguns segundos.",
     });
+
+    const ate = Date.now() + 90_000;
     try {
+      let disponiveis = 0;
+      while (Date.now() < ate) {
+        disponiveis = (await contarContatosDoCanal(canal.id)).total;
+        if (disponiveis > 0) break;
+        await new Promise((r) => setTimeout(r, 2500));
+      }
+
+      if (disponiveis === 0) {
+        mostrar({
+          tipo: "aviso",
+          titulo: "A agenda ainda não chegou",
+          descricao:
+            "O WhatsApp não terminou de sincronizar os contatos deste número. Tente de novo em um minuto.",
+        });
+        return;
+      }
+
       const { total } = await baixarArquivo(
         `/canais/${canal.id}/contatos.xlsx`,
         `contatos-${canal.nome}.xlsx`,
       );
       mostrar({
-        tipo: total === 0 ? "aviso" : "sucesso",
-        titulo:
-          total === 0
-            ? "Nenhum contato na agenda deste número"
-            : `${total ?? ""} contato(s) na planilha`,
-        descricao: total === 0 ? undefined : "Baixada com as colunas nome e numero.",
+        tipo: "sucesso",
+        titulo: `${total ?? disponiveis} contato(s) na planilha`,
+        descricao: "Baixada com as colunas nome e numero.",
       });
     } catch (e) {
       mostrar({

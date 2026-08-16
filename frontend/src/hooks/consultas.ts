@@ -250,6 +250,16 @@ export function useVerificarCanal() {
   });
 }
 
+/**
+ * Quantos contatos a agenda do canal tem agora.
+ *
+ * Consultado em laço logo após o pareamento: o WhatsApp sincroniza a agenda
+ * com o gateway aos poucos, e nos primeiros segundos ela vem vazia.
+ */
+export function contarContatosDoCanal(id: string) {
+  return api.get<{ total: number }>(`/canais/${id}/contatos/contagem`);
+}
+
 /** Campanhas que dependem do canal — perguntado antes de confirmar a exclusão. */
 export function useVinculosCanal(id: string | null) {
   return useQuery({
