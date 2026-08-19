@@ -94,6 +94,9 @@ export function useSessao(habilitado = true) {
     queryKey: chaves.eu,
     queryFn: () => api.get<Sessao>("/eu"),
     staleTime: 60_000,
+    // O pulso do worker pode mudar sem navegação; a faixa de alerta precisa
+    // resolver sozinha quando o worker voltar, sem depender de F5.
+    refetchInterval: habilitado ? 30_000 : false,
     // Sem sessão a chamada só renderia 401. Quem decide é o PainelLayout.
     enabled: habilitado,
   });

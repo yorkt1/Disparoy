@@ -13,7 +13,7 @@ import {
 import { cn } from "@/lib/formato";
 import type { Papel } from "@disparoy/dominio";
 import { MenuPerfil, type PerfilSessao } from "./menu-perfil";
-import { useContagemAvisos } from "@/hooks/consultas";
+import { useContagemAvisos, useSessao } from "@/hooks/consultas";
 
 interface ItemNav {
   href: string;
@@ -52,6 +52,9 @@ export function Topo({ usuario }: { usuario: PerfilSessao }) {
   // minutos. Um aviso escondido numa tela que ninguém abre chega tarde.
   const contagem = useContagemAvisos();
   const naoLidos = contagem.data?.total ?? 0;
+  const sessao = useSessao();
+  const disparoParado = sessao.data !== undefined && !sessao.data.disparo.ativo;
+  const diagnosticoUrgente = naoLidos > 0 || disparoParado;
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-borda bg-plano/85 backdrop-blur-md">
@@ -82,7 +85,15 @@ export function Topo({ usuario }: { usuario: PerfilSessao }) {
                     : "text-tinta-2 hover:bg-superficie-2 hover:text-tinta",
                 )}
               >
-                <Icone aria-hidden className="size-4" />
+                <span className="relative">
+                  <Icone aria-hidden className="size-4" />
+                  {item.href === "/diagnostico" && diagnosticoUrgente && (
+                    <span className="absolute -right-1 -top-1 flex size-2" aria-hidden>
+                      <span className="absolute inline-flex size-full animate-ping rounded-full bg-critico opacity-75" />
+                      <span className="relative inline-flex size-2 rounded-full bg-critico" />
+                    </span>
+                  )}
+                </span>
                 {item.rotulo}
                 {item.href === "/diagnostico" && naoLidos > 0 && (
                   <span
@@ -138,7 +149,15 @@ export function Topo({ usuario }: { usuario: PerfilSessao }) {
                     : "text-tinta-2 hover:bg-superficie-2",
                 )}
               >
-                <Icone aria-hidden className="size-4" />
+                <span className="relative">
+                  <Icone aria-hidden className="size-4" />
+                  {item.href === "/diagnostico" && diagnosticoUrgente && (
+                    <span className="absolute -right-1 -top-1 flex size-2" aria-hidden>
+                      <span className="absolute inline-flex size-full animate-ping rounded-full bg-critico opacity-75" />
+                      <span className="relative inline-flex size-2 rounded-full bg-critico" />
+                    </span>
+                  )}
+                </span>
                 {item.rotulo}
                 {item.href === "/diagnostico" && naoLidos > 0 && (
                   <span
