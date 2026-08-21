@@ -7,12 +7,38 @@ import { limparSessao, tokenAtual } from "./sessao";
  * responde `{ erro, erros? }`, então o front nunca precisa adivinhar formato.
  */
 
-function baseDaApi(): string {
-  const raw = import.meta.env.VITE_API_URL ?? "/api";
-  const semEspaco = raw.trim();
-  if (!semEspaco) return "/api";
+/**
+ * Sem `VITE_API_URL` o painel usa `/api`, que o `vercel.json` encaminha para a
+ * API no Render e o proxy do Vite encaminha para o backend local. A variável só
+ * existe para apontar o dev local direto para produção.
+ *
+ * Quando existe, precisa ser URL absoluta ou caminho iniciado por `/`. Valor
+ * fora disso é descartado: o Vite grava o valor dentro do bundle no build, e um
+ * valor inválido não falha em lugar nenhum — vira caminho relativo e o `fetch`
+ * sai para a origem do próprio painel. Foi o que aconteceu quando a variável
+ * foi salva na Vercel com o nome colado no valor
+ * (`VITE_API_URL=https://disparoy-backend.onrender.com/api`): o `POST /sessao`
+ * foi parar no host estático da Vercel, que respondeu 405 — status que não diz
+ * nada sobre configuração e custou horas para ser lido como tal. Cair no `/api`
+ * mantém o login de pé e deixa o motivo no console de quem for arrumar.
+ */
+const BASE_PADRAO = "/api";
 
-  const semBarraFinal = semEspaco.replace(/\/+$/, "");
+function baseDaApi(): string {
+  const bruto = import.meta.env.VITE_API_URL?.trim();
+  if (!bruto) return BASE_PADRAO;
+
+  if (!/^https?:\/\//i.test(bruto) && !bruto.startsWith("/")) {
+    console.error(
+      `VITE_API_URL inválida: ${JSON.stringify(bruto)}. ` +
+        `Esperava URL absoluta (https://…) ou caminho iniciado por "/". ` +
+        `Usando ${BASE_PADRAO}.`,
+    );
+    return BASE_PADRAO;
+  }
+
+  const semBarraFinal = bruto.replace(/\/+$/, "");
+  if (!semBarraFinal) return BASE_PADRAO;
   if (semBarraFinal.endsWith("/api")) return semBarraFinal;
 
   return `${semBarraFinal}/api`;
