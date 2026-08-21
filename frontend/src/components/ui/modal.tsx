@@ -26,6 +26,16 @@ export function Modal({
   largura?: "sm" | "md" | "lg";
 }) {
   const ref = React.useRef<HTMLDialogElement>(null);
+  /*
+   * Id único por instância.
+   *
+   * Era fixo em "modal-titulo", e a tela de campanha monta um <dialog> por
+   * editor de mensagem — até dez ids iguais na mesma página. O
+   * `aria-labelledby` resolve para o PRIMEIRO deles, então todo modal aberto
+   * era anunciado com o título de outro.
+   */
+  const idTitulo = React.useId();
+  const idDescricao = React.useId();
 
   React.useEffect(() => {
     const dialog = ref.current;
@@ -44,7 +54,10 @@ export function Modal({
       // formulário, e o clique fora — ou soltar fora uma seleção de texto que
       // começou dentro — descartava o que foi digitado. Fecha pelo Esc, pelo X
       // ou pelo botão do rodapé.
-      aria-labelledby="modal-titulo"
+      aria-labelledby={idTitulo}
+      // A descrição costuma ser a instrução ("WhatsApp > Aparelhos conectados"),
+      // que é justamente o que quem não vê a tela precisa ouvir junto do título.
+      aria-describedby={descricao ? idDescricao : undefined}
       className={cn(
         "m-auto w-[calc(100vw-2rem)] rounded-card border border-borda bg-superficie p-0 text-tinta",
         "backdrop:bg-black/70 backdrop:backdrop-blur-sm",
@@ -53,10 +66,14 @@ export function Modal({
     >
       <div className="flex items-start justify-between gap-4 border-b border-borda px-5 py-4">
         <div>
-          <h2 id="modal-titulo" className="text-sm font-semibold text-tinta">
+          <h2 id={idTitulo} className="text-sm font-semibold text-tinta">
             {titulo}
           </h2>
-          {descricao ? <p className="mt-1 text-xs text-tinta-3">{descricao}</p> : null}
+          {descricao ? (
+            <p id={idDescricao} className="mt-1 text-xs text-tinta-3">
+              {descricao}
+            </p>
+          ) : null}
         </div>
         <Botao tamanho="icone" variante="fantasma" onClick={aoFechar} aria-label="Fechar">
           <X aria-hidden className="size-4" />

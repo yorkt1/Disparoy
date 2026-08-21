@@ -86,48 +86,82 @@ export function PaginaDiagnostico() {
       />
 
       <div className="mb-5 flex flex-wrap gap-1.5" role="tablist" aria-label="Seções">
-        <BotaoAba ativa={aba === "avisos"} onClick={() => setAba("avisos")} contador={naoLidos}>
+        <BotaoAba aba="avisos" atual={aba} aoEscolher={setAba} contador={naoLidos}>
           <Bell aria-hidden className="size-4" />
           Avisos
         </BotaoAba>
-        <BotaoAba ativa={aba === "falhas"} onClick={() => setAba("falhas")}>
+        <BotaoAba aba="falhas" atual={aba} aoEscolher={setAba}>
           <ScanSearch aria-hidden className="size-4" />
           Falhas
         </BotaoAba>
         {/* Auditoria traz IP e metadados de importação — material de
             investigação, e por isso continua restrita a administradores. */}
         {admin && (
-          <BotaoAba ativa={aba === "auditoria"} onClick={() => setAba("auditoria")}>
+          <BotaoAba aba="auditoria" atual={aba} aoEscolher={setAba}>
             <ScrollText aria-hidden className="size-4" />
             Auditoria
           </BotaoAba>
         )}
       </div>
 
-      {aba === "avisos" && <SecaoAvisos />}
-      {aba === "falhas" && <SecaoFalhas />}
-      {aba === "auditoria" && admin && <SecaoAuditoria />}
+      {/*
+        O painel precisa se declarar painel.
+        Os botões já diziam `role="tab"`, mas sem um `tabpanel` do outro lado o
+        leitor de tela anuncia "aba 1 de 3" e não tem para onde levar a pessoa
+        depois — o conteúdo vira texto solto, sem relação com a aba escolhida.
+      */}
+      <div role="tabpanel" id={`painel-${aba}`} aria-labelledby={`aba-${aba}`} tabIndex={-1}>
+        {aba === "avisos" && <SecaoAvisos />}
+        {aba === "falhas" && <SecaoFalhas />}
+        {aba === "auditoria" && admin && <SecaoAuditoria />}
+      </div>
     </div>
   );
 }
 
 function BotaoAba({
-  ativa,
-  onClick,
+  aba,
+  atual,
+  aoEscolher,
   contador,
   children,
 }: {
-  ativa: boolean;
-  onClick: () => void;
+  aba: Aba;
+  atual: Aba;
+  aoEscolher: (a: Aba) => void;
   contador?: number;
   children: React.ReactNode;
 }) {
+  const ativa = aba === atual;
   return (
     <button
       type="button"
       role="tab"
+      id={`aba-${aba}`}
       aria-selected={ativa}
-      onClick={onClick}
+      aria-controls={`painel-${aba}`}
+      /*
+       * Só a aba ativa fica no Tab.
+       *
+       * É o que a especificação de tablist pede: o Tab entra e sai do grupo de
+       * uma vez, e a troca acontece nas setas. Sem isto, chegar ao conteúdo
+       * exigia atravessar todas as abas uma a uma.
+       */
+      tabIndex={ativa ? 0 : -1}
+      onClick={() => aoEscolher(aba)}
+      onKeyDown={(e) => {
+        const passo = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+        if (passo === 0) return;
+        e.preventDefault();
+        // Percorre os irmãos reais do DOM: quando o operador não é admin, a
+        // aba de auditoria nem existe, e uma lista fixa aqui apontaria para
+        // um botão ausente.
+        const abas = Array.from(
+          e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [],
+        );
+        const i = abas.indexOf(e.currentTarget);
+        abas[(i + passo + abas.length) % abas.length]?.focus();
+      }}
       className={[
         "flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm transition-colors",
         ativa

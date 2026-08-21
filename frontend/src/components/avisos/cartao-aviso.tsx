@@ -26,7 +26,10 @@ export function CartaoAviso({ aviso }: { aviso: Aviso }) {
         "rounded-xl border p-4",
         resolvido
           ? "border-borda bg-superficie-2 opacity-75"
-          : "border-borda-forte bg-superficie-1",
+          : // `superficie-1` não existe no tema: a classe não gerava nada e o
+            // aviso ABERTO — justo o que precisa saltar — ficava sem fundo, mais
+            // apagado que o resolvido logo abaixo dele.
+            "border-borda-forte bg-superficie",
       ].join(" ")}
     >
       <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -43,8 +46,14 @@ export function CartaoAviso({ aviso }: { aviso: Aviso }) {
           {aviso.canalNome ? ` · ${aviso.canalNome}` : ""}
         </span>
 
+        {/* `aria-label` num <span> sem papel é ignorado pelo leitor de tela: o
+            ponto vermelho existia só para quem enxerga. O texto escondido é o
+            que faz "não lido" chegar aos dois. */}
         {naoLido && (
-          <span className="ml-auto size-2 rounded-full bg-critico" aria-label="Não lido" />
+          <span className="ml-auto flex items-center gap-1.5">
+            <span className="sr-only">Não lido</span>
+            <span aria-hidden className="size-2 rounded-full bg-critico" />
+          </span>
         )}
       </div>
 

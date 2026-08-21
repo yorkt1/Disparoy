@@ -11,7 +11,9 @@
     "dev:web": "npm run dev -w @disparoy/frontend",
     "build": "npm run build -w @disparoy/dominio && npm run build -w @disparoy/frontend",
     "test": "npm run test --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "compartilhado:gravar": "node scripts/hash-compartilhado.mjs --gravar",
+    "compartilhado:verificar": "node scripts/hash-compartilhado.mjs --verificar"
   },
   "devDependencies": {
     "typescript": "^5.7.3"

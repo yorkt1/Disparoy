@@ -508,11 +508,20 @@ export function useContagemAvisos() {
   });
 }
 
-export function useIncidentesAbertos() {
+/**
+ * O que está quebrado AGORA, com a categoria junto.
+ *
+ * `habilitado` porque quem consulta fora da caixa de avisos só precisa disto
+ * numa situação específica — a campanha pausada pelo sistema querendo saber de
+ * quem foi a culpa. Ligar o intervalo de 30 s em toda tela de campanha seria
+ * uma chamada por minuto para responder a uma pergunta que quase nunca existe.
+ */
+export function useIncidentesAbertos(habilitado = true) {
   return useQuery({
     queryKey: chaves.incidentes,
     queryFn: () => api.get<Incidente[]>("/avisos/incidentes"),
-    refetchInterval: 30_000,
+    refetchInterval: habilitado ? 30_000 : false,
+    enabled: habilitado,
   });
 }
 

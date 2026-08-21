@@ -22,7 +22,7 @@ export function ControleIntervalo({
   const arriscado = valor.minSegundos < LIMITES.intervaloMinimoRecomendadoSegundos;
 
   const entrada =
-    "tabular h-9 w-full rounded-lg border border-borda-forte bg-superficie px-2.5 text-sm text-tinta focus:border-marca focus:outline-none";
+    "tabular h-9 w-full rounded-lg border border-borda-forte bg-superficie px-2.5 text-sm text-tinta focus:border-marca";
 
   return (
     <div className="rounded-lg border border-borda-forte bg-superficie-2 p-3.5">

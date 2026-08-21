@@ -79,10 +79,18 @@ export async function chamarApi<T>(caminho: string, opcoes: OpcoesRequisicao = {
   }
 
   if (!resposta.ok) {
-    // 401 com token no bolso é sessão morta (expirada, perfil excluído,
-    // JWT_SECRET trocado). Limpar aqui faz o provider redirecionar para o
-    // login em vez de deixar a tela repetindo a chamada.
-    if (resposta.status === 401 && token) limparSessao();
+    /*
+     * 401 é sessão morta (expirada, perfil excluído, JWT_SECRET trocado).
+     * Limpar aqui faz o provider redirecionar para o login em vez de deixar a
+     * tela repetindo a chamada.
+     *
+     * Sem depender de `token`: quando ele já venceu, `tokenAtual()` devolve
+     * `null` e a chamada sai sem `Authorization` — era justamente o caso em que
+     * a limpeza não acontecia, e o painel ficava logado por dentro exibindo uma
+     * tela de erro. `limparSessao` sabe ficar calada quando não havia sessão
+     * nenhuma, então o 401 do próprio login não vira aviso de sessão.
+     */
+    if (resposta.status === 401) limparSessao("recusada");
 
     const c = dados as { erro?: string; erros?: Record<string, string> } | null;
     throw new ErroApi(c?.erro ?? `Erro ${resposta.status}.`, resposta.status, c?.erros);
@@ -111,7 +119,7 @@ export async function baixarArquivo(
   });
 
   if (!resposta.ok) {
-    if (resposta.status === 401 && token) limparSessao();
+    if (resposta.status === 401) limparSessao("recusada");
     // O erro vem em JSON mesmo numa rota que normalmente devolve binário.
     let mensagem = `Erro ${resposta.status}.`;
     let campos: Record<string, string> | undefined;

@@ -7,7 +7,7 @@ import { cn } from "@/lib/formato";
 
 const controle =
   "w-full rounded-lg border border-borda-forte bg-superficie-2 px-3 text-sm text-tinta placeholder:text-tinta-3 " +
-  "transition-colors hover:border-[#4a4a46] focus:border-marca focus:outline-none disabled:opacity-50";
+  "transition-colors hover:border-borda-viva focus:border-marca disabled:opacity-50";
 
 export function Rotulo({
   htmlFor,

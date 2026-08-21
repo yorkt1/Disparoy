@@ -83,21 +83,21 @@ export function PreviaConversa({
 
       {/* Daqui para baixo, as cores são as do WhatsApp escuro, não as do painel:
           a prévia serve para julgar como a mensagem vai parecer no aparelho. */}
-      <div className="flex items-center gap-2.5 bg-[#202c33] px-3 py-2">
+      <div className="flex items-center gap-2.5 bg-zap-topo px-3 py-2">
         <span
           aria-hidden
-          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#6a7175] text-sm font-medium text-[#e9edef]"
+          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-zap-avatar text-sm font-medium text-zap-tinta"
         >
           {inicial}
         </span>
         <div className="min-w-0">
-          <p className="truncate text-sm leading-tight text-[#e9edef]">{nomeContato}</p>
-          <p className="text-[11px] leading-tight text-[#8696a0]">online</p>
+          <p className="truncate text-sm leading-tight text-zap-tinta">{nomeContato}</p>
+          <p className="text-[11px] leading-tight text-zap-tinta-2">online</p>
         </div>
       </div>
 
       <div
-        className="flex flex-col gap-2 bg-[#0b141a] px-3 py-3.5"
+        className="flex flex-col gap-2 bg-zap-fundo px-3 py-3.5"
         style={{
           // Trama sutil no lugar do papel de parede do WhatsApp, que é imagem.
           backgroundImage:
@@ -106,32 +106,32 @@ export function PreviaConversa({
         }}
       >
         <div className="mb-1 flex justify-center">
-          <span className="rounded-md bg-[#182229] px-2.5 py-1 text-[11px] text-[#8696a0] shadow-sm">
+          <span className="rounded-md bg-zap-etiqueta px-2.5 py-1 text-[11px] text-zap-tinta-2 shadow-sm">
             HOJE
           </span>
         </div>
 
         {renderizadas.map((m, i) => (
           <div key={m.id} className="flex justify-end">
-            <div className="relative max-w-[85%] rounded-lg rounded-tr-none bg-[#005c4b] px-2 py-1.5 shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]">
+            <div className="relative max-w-[85%] rounded-lg rounded-tr-none bg-zap-bolha px-2 py-1.5 shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]">
               {/* Bico da bolha: é o que faz a forma ser lida como WhatsApp. */}
               <span
                 aria-hidden
-                className="absolute top-0 -right-2 size-0 border-t-[8px] border-l-[8px] border-t-[#005c4b] border-l-transparent"
+                className="absolute top-0 -right-2 size-0 border-t-[8px] border-l-[8px] border-t-zap-bolha border-l-transparent"
               />
 
               {m.tipo === "midia" && m.midia ? <MidiaNaBolha midia={m.midia} /> : null}
 
               {m.texto.trim() ? (
-                <p className="px-1 text-sm leading-[1.35] whitespace-pre-wrap text-[#e9edef]">
+                <p className="px-1 text-sm leading-[1.35] whitespace-pre-wrap text-zap-tinta">
                   {m.texto}
                 </p>
               ) : (
-                <p className="px-1 text-sm text-[#e9edef]/40 italic">Mensagem {i + 1} ainda vazia</p>
+                <p className="px-1 text-sm text-zap-tinta/40 italic">Mensagem {i + 1} ainda vazia</p>
               )}
 
               {/* Um traço só: a prévia não tem status de entrega para exibir. */}
-              <span className="mt-0.5 flex items-center justify-end gap-1 pr-1 text-[11px] text-[#ffffff]/60">
+              <span className="mt-0.5 flex items-center justify-end gap-1 pr-1 text-[11px] text-white/60">
                 {horario}
                 <Check aria-hidden className="size-3" />
               </span>

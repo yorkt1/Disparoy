@@ -43,6 +43,23 @@ jobs:
       - name: Testes
         run: npm test
 
+      # O painel não tem exceção a declarar — nenhuma dependência de produção com
+      # aviso aberto. Se um aparecer, o CI reprova aqui, que é o objetivo: descobrir
+      # no pull request e não no dia em que virar incidente. O backend usa um script
+      # no lugar deste comando porque lá existe um aviso sem correção publicada, que
+      # precisa de exceção nominal.
+      - name: Auditoria de dependências
+        run: npm audit --omit=dev --audit-level=high
+
+      # `shared/` é copiado byte a byte entre os dois repositórios, e o processo
+      # para manter isso era "lembre de copiar e rodar diff -rq". Divergência
+      # aqui produz o pior tipo de bug: normalizar um telefone passa a dar
+      # resultado diferente na API e no painel, os dois compilam, os dois passam
+      # nos testes, e a diferença só aparece em produção. O CI clona um repo só,
+      # então a conferência é contra o hash versionado nos dois.
+      - name: shared/ não divergiu do outro repositório
+        run: npm run compartilhado:verificar
+
       - name: Nenhum segredo versionado
         run: |
           if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -v '\.example$'; then

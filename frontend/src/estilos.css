@@ -4,6 +4,17 @@
    Tema escuro — único tema do painel, conforme especificação.
    As cores de série do gráfico vêm de uma rampa sequencial validada para a
    superfície escura (#1a1a19); status usa a paleta reservada.
+
+   Toda cor do painel nasce aqui. Hex solto em componente é o que impede trocar
+   o tema num lugar só — e, pior, apaga a diferença entre uma cor escolhida de
+   propósito e uma cor que alguém digitou de memória: as duas ficam com a mesma
+   cara no meio da classe.
+
+   Nota de CSP: `style-src` precisa de 'unsafe-inline' em vercel.json por causa
+   de dois usos que não passam por este arquivo — o <style> embutido no
+   index.html, que pinta o fundo antes do React montar, e os `style=` que o
+   React escreve para largura variável (barra de progresso, gráfico de status).
+   Enquanto esses dois existirem, apertar essa diretiva quebra a tela.
    -------------------------------------------------------------------------- */
 @theme {
   --color-plano: #0d0d0d;
@@ -12,6 +23,9 @@
   --color-superficie-3: #2a2a28;
   --color-borda: #2c2c2a;
   --color-borda-forte: #383835;
+  /* Borda no hover: o degrau acima de `borda-forte`, usado por todo controle
+     que reage ao mouse (campo, dropzone, cartão selecionável). */
+  --color-borda-viva: #4a4a46;
 
   --color-tinta: #ffffff;
   --color-tinta-2: #c3c2b7;
@@ -31,6 +45,22 @@
   --color-serie-2: #3987e5;
   --color-serie-3: #1c5cab;
   --color-serie-falha: #d03b3b;
+
+  /* ------------------------------------------------------------------------
+     Cores do WhatsApp escuro. NÃO são cores do painel e não acompanham o tema.
+     Existem só dentro da prévia da conversa, que serve para julgar como a
+     mensagem vai parecer no aparelho — se seguissem a paleta daqui, a prévia
+     deixaria de responder à única pergunta que ela existe para responder.
+     Ficam nomeadas porque hex solto no componente não deixa ver que a exceção
+     é deliberada.
+     ------------------------------------------------------------------------ */
+  --color-zap-topo: #202c33;
+  --color-zap-fundo: #0b141a;
+  --color-zap-bolha: #005c4b;
+  --color-zap-etiqueta: #182229;
+  --color-zap-avatar: #6a7175;
+  --color-zap-tinta: #e9edef;
+  --color-zap-tinta-2: #8696a0;
 
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
@@ -52,7 +82,20 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Foco visível consistente em toda a navegação por teclado. */
+/*
+   Foco visível consistente em toda a navegação por teclado.
+
+   `:focus-visible` e não `:focus` de propósito: o anel aparece para quem chega
+   pelo Tab e não para quem clica com o mouse, que é o comportamento que o
+   próprio navegador adota hoje.
+
+   Não use `focus:outline-none` do Tailwind em controle nenhum. Ele casa em
+   `:focus` com uma classe, o que dá especificidade maior que esta regra — e o
+   `:where()` daqui zera a nossa de propósito, para os componentes poderem
+   ajustar detalhe sem brigar. O resultado é que `focus:outline-none` apaga o
+   anel por completo e sobra só a troca de cor da borda, que some contra o
+   fundo escuro. Quem navega de teclado perde onde está.
+*/
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
   outline: 2px solid var(--color-marca);
   outline-offset: 2px;
@@ -76,7 +119,7 @@ body {
   border-radius: 5px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #4a4a46;
+  background: var(--color-borda-viva);
 }
 
 /* O seletor nativo de data/hora renderiza escuro no Chromium com isto. */

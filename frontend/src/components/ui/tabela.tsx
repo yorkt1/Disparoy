@@ -86,7 +86,7 @@ export function Tabela<T>({
                 onChange={(e) => setBusca(e.target.value)}
                 placeholder={buscaPlaceholder}
                 aria-label={buscaPlaceholder}
-                className="h-9 w-full rounded-lg border border-borda-forte bg-superficie-2 pr-3 pl-9 text-sm text-tinta placeholder:text-tinta-3 focus:border-marca focus:outline-none"
+                className="h-9 w-full rounded-lg border border-borda-forte bg-superficie-2 pr-3 pl-9 text-sm text-tinta placeholder:text-tinta-3 focus:border-marca"
               />
             </div>
           ) : null}
@@ -227,7 +227,7 @@ export function FiltroSelecao({
         id={id}
         value={valor}
         onChange={(e) => aoMudar(e.target.value)}
-        className="h-9 cursor-pointer rounded-lg border border-borda-forte bg-superficie-2 px-2.5 text-sm text-tinta focus:border-marca focus:outline-none"
+        className="h-9 cursor-pointer rounded-lg border border-borda-forte bg-superficie-2 px-2.5 text-sm text-tinta focus:border-marca"
       >
         {opcoes.map((o) => (
           <option key={o.valor} value={o.valor}>

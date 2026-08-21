@@ -1,5 +1,6 @@
 import { Link, useParams } from "react-router-dom";
-import { ChevronLeft, CirclePause, Clock, MessageSquare, Play, Users } from "lucide-react";
+import { ChevronLeft, CirclePause, Clock, MessageSquare, Play, QrCode, Users } from "lucide-react";
+import type { Incidente } from "@disparoy/dominio";
 import {
   BarraProgresso,
   Card,
@@ -11,8 +12,14 @@ import { Botao, BotaoLink } from "@/components/ui/botao";
 import { Carregando, ErroCarregamento } from "@/components/ui/estados";
 import { useToast } from "@/components/ui/toast";
 import { GraficoStatus } from "@/components/charts/grafico-status";
+import { AberturaOrigem, SeloOrigem } from "@/components/avisos/selo-origem";
 import { ROTULO_CONEXAO, SeloCampanha } from "@/components/campanhas/selo-status";
-import { useAlterarExecucao, useCampanha, useCanais } from "@/hooks/consultas";
+import {
+  useAlterarExecucao,
+  useCampanha,
+  useCanais,
+  useIncidentesAbertos,
+} from "@/hooks/consultas";
 import { ErroApi } from "@/lib/api";
 import {
   formatarDataHora,
@@ -27,6 +34,11 @@ export function PaginaDetalheCampanha() {
   const canaisTodos = useCanais();
   const execucao = useAlterarExecucao();
   const { mostrar } = useToast();
+
+  // Só quando o sistema pausou: é a única situação em que a tela precisa saber
+  // de quem foi a culpa. Ver `useIncidentesAbertos`.
+  const pausadaPeloSistema = consulta.data?.campanha.status === "pausada_por_canal";
+  const incidentes = useIncidentesAbertos(pausadaPeloSistema);
 
   if (consulta.isLoading) return <Carregando rotulo="Carregando campanha…" />;
   if (consulta.error) {
@@ -83,7 +95,10 @@ export function PaginaDetalheCampanha() {
         </Link>
 
         {campanha.status === "pausada_por_canal" && (
-          <FaixaPausaAutomatica motivo={campanha.pausadaMotivo} />
+          <FaixaPausaAutomatica
+            motivo={campanha.pausadaMotivo}
+            incidente={incidenteDaCampanha(incidentes.data, id, campanha.canaisIds)}
+          />
         )}
 
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
@@ -297,32 +312,102 @@ function ItemDefinicao({
 
 
 /**
+ * Qual incidente aberto explica esta pausa.
+ *
+ * Duas tentativas, nesta ordem, porque o incidente nem sempre carrega a
+ * campanha: o worker abre com `campanha_id`, mas a vigilância periódica abre só
+ * com `canal_id` — e o índice único agrupa as duas no MESMO incidente. Procurar
+ * apenas pela campanha faria a faixa cair no genérico exatamente no caso em que
+ * o canal caiu de madrugada, que é o mais comum de todos.
+ */
+function incidenteDaCampanha(
+  incidentes: Incidente[] | undefined,
+  campanhaId: string,
+  canaisIds: string[],
+): Incidente | null {
+  const abertos = incidentes ?? [];
+  return (
+    abertos.find((i) => i.campanhaId === campanhaId) ??
+    abertos.find((i) => i.canalId !== null && canaisIds.includes(i.canalId)) ??
+    null
+  );
+}
+
+/**
  * Faixa da pausa automática.
  *
  * É a tela que responde à pergunta que o sistema inteiro não sabia responder:
- * a campanha parou por culpa de quem? O texto vem pronto de `pausada_motivo`,
- * gravado no momento da pausa e já escrito na língua do operador — a tela não
- * interpreta código de erro nem compara string.
+ * a campanha parou por culpa de quem?
+ *
+ * A cor e a ação saem da CATEGORIA do incidente, nunca do texto. Antes esta
+ * faixa era vermelha e oferecia "Ver canais" em todos os casos — inclusive
+ * quando a culpa era nossa. Ou seja: o painel mandava o cliente pegar o celular
+ * e escanear um QR Code que estava funcionando, por causa de um servidor fora
+ * do ar. Era o defeito que a arquitetura de atribuição de falha existe para
+ * eliminar, sobrevivendo no último metro, dentro da tela.
+ *
+ * `canal` chama para a ação, porque só ela é resolvida por uma pessoa com o
+ * aparelho na mão. As outras dizem, em cor calma e sem botão, que não há nada a
+ * fazer — e é isso que evita a ligação perguntando se o sistema quebrou.
+ *
+ * Sem incidente casado, a faixa fica neutra e repete `pausada_motivo`: não
+ * saber de quem é a culpa não autoriza a acusar o WhatsApp do cliente.
  */
-function FaixaPausaAutomatica({ motivo }: { motivo: string | null }) {
+function FaixaPausaAutomatica({
+  motivo,
+  incidente,
+}: {
+  motivo: string | null;
+  incidente: Incidente | null;
+}) {
+  const categoria = incidente?.categoria ?? null;
+  const exigeOperador = categoria === "canal";
+
+  const moldura = exigeOperador
+    ? "border-critico/35 bg-critico/10"
+    : "border-borda-forte bg-superficie-2";
+
   return (
     <div
       role="status"
-      className="mt-3 flex flex-wrap items-start gap-3 rounded-xl border border-critico/35 bg-critico/10 p-4"
+      className={`mt-3 flex flex-wrap items-start gap-3 rounded-xl border p-4 ${moldura}`}
     >
-      <CirclePause aria-hidden className="mt-0.5 size-4 shrink-0 text-critico" />
+      <CirclePause
+        aria-hidden
+        className={`mt-0.5 size-4 shrink-0 ${exigeOperador ? "text-critico" : "text-tinta-3"}`}
+      />
+
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-tinta">O sistema pausou esta campanha</p>
-        <p className="mt-0.5 text-sm text-tinta-2">
-          {motivo ?? "Motivo não registrado."}
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-medium text-tinta">O sistema pausou esta campanha</p>
+          {categoria ? <SeloOrigem categoria={categoria} /> : null}
+        </div>
+
+        <p className="mt-1 text-sm text-tinta-2">
+          {categoria ? (
+            <>
+              <AberturaOrigem categoria={categoria} />{" "}
+            </>
+          ) : null}
+          {motivo ?? incidente?.titulo ?? "Motivo não registrado."}
         </p>
+
         <p className="mt-1 text-xs text-tinta-3">
           Nenhum contato foi perdido: os pendentes voltaram para a fila e ninguém recebe duas vezes.
+          {exigeOperador
+            ? " Assim que o aparelho reconectar, a campanha volta sozinha."
+            : " A campanha retoma sozinha quando o problema se resolver — não é preciso fazer nada."}
         </p>
       </div>
-      <BotaoLink to="/canais" variante="primario" tamanho="sm">
-        Ver canais
-      </BotaoLink>
+
+      {/* Botão só quando existe algo a fazer. Oferecer "Ver canais" numa falha
+          de infra é mandar o operador procurar defeito onde não há. */}
+      {exigeOperador ? (
+        <BotaoLink to="/canais" variante="primario" tamanho="sm">
+          <QrCode aria-hidden className="size-4" />
+          Reconectar WhatsApp
+        </BotaoLink>
+      ) : null}
     </div>
   );
 }

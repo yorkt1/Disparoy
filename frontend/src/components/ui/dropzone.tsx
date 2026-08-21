@@ -103,7 +103,7 @@ export function Dropzone({
           "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-6 py-9 text-center transition-colors",
           arrastando
             ? "border-marca bg-marca/8"
-            : "border-borda-forte bg-superficie-2 hover:border-[#4a4a46] hover:bg-superficie-3",
+            : "border-borda-forte bg-superficie-2 hover:border-borda-viva hover:bg-superficie-3",
         )}
       >
         {carregando ? (
@@ -124,6 +124,12 @@ export function Dropzone({
         type="file"
         accept={extensoes.join(",")}
         className="sr-only"
+        // Fora da ordem do Tab: `sr-only` esconde do olho mas não do teclado, e
+        // com o input focável a mesma área virava DUAS paradas — a primeira
+        // anunciada como "Selecionar planilha", a segunda muda. Quem opera o
+        // painel só de teclado tabulava para um controle invisível. O alvo é a
+        // área acima, que já é botão, tem rótulo e responde a Enter e Espaço.
+        tabIndex={-1}
         onChange={(e) => {
           validarEEntregar(e.target.files?.[0]);
           e.target.value = "";

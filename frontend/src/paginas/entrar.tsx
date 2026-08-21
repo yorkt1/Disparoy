@@ -1,9 +1,10 @@
 import * as React from "react";
 import { Navigate } from "react-router-dom";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, Clock } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { Campo, MensagemErro } from "@/components/ui/campos";
 import { useAuth } from "@/auth/contexto-auth";
+import type { MotivoFim } from "@/lib/sessao";
 import { ErroApi } from "@/lib/api";
 
 /**
@@ -14,7 +15,7 @@ import { ErroApi } from "@/lib/api";
  * qualquer um que alcançasse a URL.
  */
 export function PaginaEntrar() {
-  const { autenticado, entrar } = useAuth();
+  const { autenticado, entrar, motivoFim } = useAuth();
   const [email, setEmail] = React.useState("");
   const [senha, setSenha] = React.useState("");
   const [erro, setErro] = React.useState<string | null>(null);
@@ -56,6 +57,8 @@ export function PaginaEntrar() {
           <span className="text-lg font-semibold tracking-tight text-tinta">DisparoY</span>
         </div>
 
+        <AvisoSessaoEncerrada motivo={motivoFim} />
+
         <div className="rounded-card border border-borda bg-superficie p-6">
           <h1 className="text-base font-semibold text-tinta">Entrar na sua conta</h1>
           <p className="mt-1 text-xs text-tinta-3">Use o e-mail e a senha cadastrados.</p>
@@ -95,6 +98,39 @@ export function PaginaEntrar() {
             Acesso criado pelo administrador. Esqueceu a senha? Peça a ele para redefinir.
           </p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Por que a pessoa está vendo esta tela sem ter clicado em Sair.
+ *
+ * O token vale 12 h e vence no meio do trabalho. Sem esta faixa, o painel
+ * simplesmente virava a tela de login: da cadeira de quem estava acompanhando
+ * uma campanha, isso é indistinguível de o sistema ter caído e derrubado tudo.
+ * A frase sobre o disparo continuar é a parte que importa — a sessão é do
+ * navegador, o envio é do worker, e nada para porque alguém deslogou.
+ */
+function AvisoSessaoEncerrada({ motivo }: { motivo: MotivoFim | null }) {
+  if (motivo !== "expirou" && motivo !== "recusada") return null;
+
+  return (
+    <div
+      role="status"
+      className="mb-4 flex items-start gap-2.5 rounded-card border border-aviso/35 bg-aviso/10 px-4 py-3"
+    >
+      <Clock aria-hidden className="mt-0.5 size-4 shrink-0 text-aviso" />
+      <div>
+        <p className="text-sm font-medium text-tinta">
+          {motivo === "expirou" ? "Sua sessão expirou" : "Seu acesso foi recusado"}
+        </p>
+        <p className="mt-0.5 text-xs text-tinta-2">
+          {motivo === "expirou"
+            ? "O acesso vale 12 horas. Entre de novo para continuar."
+            : "O servidor não aceitou mais este acesso. Entre de novo; se repetir, peça ao administrador para conferir seu cadastro."}{" "}
+          As campanhas em andamento não param por causa disto — quem envia é o servidor.
+        </p>
       </div>
     </div>
   );

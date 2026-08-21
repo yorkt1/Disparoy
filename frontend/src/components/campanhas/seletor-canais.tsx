@@ -49,7 +49,7 @@ export function SeletorCanais({
                 "flex cursor-pointer items-start gap-3 rounded-lg border px-3.5 py-3 transition-colors",
                 marcado
                   ? "border-marca bg-marca/8"
-                  : "border-borda-forte bg-superficie-2 hover:border-[#4a4a46]",
+                  : "border-borda-forte bg-superficie-2 hover:border-borda-viva",
               )}
             >
               <input
