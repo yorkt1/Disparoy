@@ -13,7 +13,7 @@ import {
 import { cn } from "@/lib/formato";
 import type { Papel } from "@disparoy/dominio";
 import { MenuPerfil, type PerfilSessao } from "./menu-perfil";
-import { useContagemAvisos } from "@/hooks/consultas";
+import { useContagemAvisos, useSessao } from "@/hooks/consultas";
 
 interface ItemNav {
   href: string;
@@ -53,6 +53,10 @@ export function Topo({ usuario }: { usuario: PerfilSessao }) {
   const contagem = useContagemAvisos();
   const naoLidos = contagem.data?.total ?? 0;
 
+  // Mesma query `/eu` que o layout já mantém viva de 30 em 30 segundos: o ponto
+  // aparece e some sozinho quando o worker cai e volta, sem depender de F5.
+  const disparoParado = useSessao().data?.disparo.ativo === false;
+
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-borda bg-plano/85 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-4 px-4 sm:px-6">
@@ -84,13 +88,8 @@ export function Topo({ usuario }: { usuario: PerfilSessao }) {
               >
                 <Icone aria-hidden className="size-4" />
                 {item.rotulo}
-                {item.href === "/diagnostico" && naoLidos > 0 && (
-                  <span
-                    aria-label={`${naoLidos} avisos não lidos`}
-                    className="ml-0.5 min-w-4 rounded-full bg-critico px-1 text-center text-[11px] font-medium text-white"
-                  >
-                    {naoLidos > 9 ? "9+" : naoLidos}
-                  </span>
+                {item.href === "/diagnostico" && (
+                  <SinaisDiagnostico disparoParado={disparoParado} naoLidos={naoLidos} />
                 )}
               </Link>
             );
@@ -140,13 +139,8 @@ export function Topo({ usuario }: { usuario: PerfilSessao }) {
               >
                 <Icone aria-hidden className="size-4" />
                 {item.rotulo}
-                {item.href === "/diagnostico" && naoLidos > 0 && (
-                  <span
-                    aria-label={`${naoLidos} avisos não lidos`}
-                    className="ml-0.5 min-w-4 rounded-full bg-critico px-1 text-center text-[11px] font-medium text-white"
-                  >
-                    {naoLidos > 9 ? "9+" : naoLidos}
-                  </span>
+                {item.href === "/diagnostico" && (
+                  <SinaisDiagnostico disparoParado={disparoParado} naoLidos={naoLidos} />
                 )}
               </Link>
             );
@@ -154,6 +148,51 @@ export function Topo({ usuario }: { usuario: PerfilSessao }) {
         </nav>
       ) : null}
     </header>
+  );
+}
+
+/**
+ * Sinais do item "Diagnóstico": disparo parado e avisos não lidos.
+ *
+ * O ponto substitui a faixa que ficava acima de toda tela. Ela dizia tudo o que
+ * precisava, mas aparecia em cima de qualquer coisa que o operador fosse fazer
+ * e virava paisagem em uma semana — alerta permanente deixa de ser lido. Este
+ * ponto é pequeno o bastante para conviver com o painel o dia inteiro e mesmo
+ * assim é a única coisa que se move na barra.
+ *
+ * São dois sinais vermelhos lado a lado, e significam coisas diferentes: o
+ * ponto pulsa e o contador não. Vem primeiro porque é o mais grave — enquanto
+ * ele estiver lá, NENHUMA campanha sai; aviso não lido é passado, não presente.
+ *
+ * O texto completo (desde quando, o que acontece com as campanhas) fica na tela
+ * de diagnóstico, a um clique daqui.
+ */
+function SinaisDiagnostico({
+  disparoParado,
+  naoLidos,
+}: {
+  disparoParado: boolean;
+  naoLidos: number;
+}) {
+  return (
+    <>
+      {disparoParado && (
+        <span
+          role="img"
+          aria-label="Disparo parado"
+          title="Nenhuma campanha está sendo enviada"
+          className="ml-0.5 size-2 shrink-0 animate-pulse rounded-full bg-critico motion-reduce:animate-none"
+        />
+      )}
+      {naoLidos > 0 && (
+        <span
+          aria-label={`${naoLidos} avisos não lidos`}
+          className="ml-0.5 min-w-4 rounded-full bg-critico px-1 text-center text-[11px] font-medium text-white"
+        >
+          {naoLidos > 9 ? "9+" : naoLidos}
+        </span>
+      )}
+    </>
   );
 }
 
