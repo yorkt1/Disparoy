@@ -24,6 +24,7 @@ import { Carregando, ErroCarregamento } from "@/components/ui/estados";
 import { Tabela, type Coluna } from "@/components/ui/tabela";
 import { SeloOrigem } from "@/components/avisos/selo-origem";
 import { CartaoAviso } from "@/components/avisos/cartao-aviso";
+import { FaixaDisparoParado } from "@/components/avisos/faixa-disparo-parado";
 import { TabelaLogs } from "@/components/logs/tabela-logs";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -34,6 +35,7 @@ import {
   useEhAdmin,
   useLogs,
   useMarcarTodosAvisosLidos,
+  useSessao,
 } from "@/hooks/consultas";
 import { formatarDataHora, formatarNumero } from "@/lib/formato";
 
@@ -77,9 +79,13 @@ export function PaginaDiagnostico() {
   const contagem = useContagemAvisos();
   const naoLidos = contagem.data?.total ?? 0;
   const admin = useEhAdmin();
+  // Mesma query de `/eu` que o layout já mantém viva; o react-query serve do
+  // cache, então abrir esta tela não custa uma requisição a mais.
+  const disparo = useSessao().data?.disparo;
 
   return (
     <div>
+      {disparo && !disparo.ativo && <FaixaDisparoParado pulsoEm={disparo.pulsoEm} />}
       <CabecalhoPagina
         titulo="Diagnóstico"
         descricao="O que está quebrado agora, o que vem quebrando, e quem mexeu em quê."
