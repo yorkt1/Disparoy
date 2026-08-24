@@ -16,6 +16,9 @@ const ACOES: Record<AcaoLog, { texto: string; tom: TomBadge }> = {
   "campanha.pausada": { texto: "Campanha pausada", tom: "aviso" },
   "campanha.concluida": { texto: "Campanha concluída", tom: "bom" },
   "campanha.abandonada": { texto: "Campanha abandonada", tom: "critico" },
+  // "não saiu no horário" e não "expirou": o que o operador precisa saber é
+  // que nenhuma mensagem foi enviada, não o nome interno do mecanismo.
+  "campanha.agendamento_expirado": { texto: "Agendamento não saiu no horário", tom: "critico" },
   "campanha.rascunho_salvo": { texto: "Rascunho salvo", tom: "neutro" },
   "midia.upload": { texto: "Upload de mídia", tom: "neutro" },
   "spintax.criado": { texto: "Spintax criado", tom: "neutro" },

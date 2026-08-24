@@ -1,5 +1,14 @@
 import { Link, useParams } from "react-router-dom";
-import { ChevronLeft, CirclePause, Clock, MessageSquare, Play, Users } from "lucide-react";
+import {
+  ChevronLeft,
+  CircleAlert,
+  CirclePause,
+  Clock,
+  MessageSquare,
+  Play,
+  Users,
+} from "lucide-react";
+import type { StatusCampanha } from "@disparoy/dominio";
 import {
   BarraProgresso,
   Card,
@@ -82,8 +91,14 @@ export function PaginaDetalheCampanha() {
           Campanhas
         </Link>
 
-        {campanha.status === "pausada_por_canal" && (
-          <FaixaPausaAutomatica motivo={campanha.pausadaMotivo} />
+        {/*
+          `falhou` só entra na faixa QUANDO tem motivo: a campanha que falhou
+          por falta de canal conectado não grava nada em `pausadaMotivo`, e uma
+          faixa dizendo "motivo não registrado" é pior do que faixa nenhuma.
+        */}
+        {(campanha.status === "pausada_por_canal" ||
+          (campanha.status === "falhou" && campanha.pausadaMotivo)) && (
+          <FaixaParadaPeloSistema status={campanha.status} motivo={campanha.pausadaMotivo} />
         )}
 
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
@@ -304,24 +319,52 @@ function ItemDefinicao({
  * gravado no momento da pausa e já escrito na língua do operador — a tela não
  * interpreta código de erro nem compara string.
  */
-function FaixaPausaAutomatica({ motivo }: { motivo: string | null }) {
+/**
+ * A faixa que explica o que o SISTEMA fez com a campanha — e ela é obrigatória.
+ *
+ * Sem isto, os dois casos aqui aparecem na tela como um selo de status e mais
+ * nada: o operador vê "pausada" ou "falhou" e não tem como saber o porquê nem o
+ * que fazer. É a falha silenciosa que este produto passa o tempo todo tentando
+ * não ter.
+ *
+ * Os dois casos precisam de textos diferentes porque o desfecho é diferente:
+ *
+ *  - `pausada_por_canal` é reversível. Parte já saiu, os pendentes voltaram
+ *    para a fila e reconectar o canal retoma de onde parou. O CTA é o canal.
+ *  - `falhou` por agendamento expirado é definitivo. NADA saiu, e a campanha
+ *    não volta a andar — `retomar` não a aceita, de propósito. Prometer "nenhum
+ *    contato foi perdido" aqui faria o operador esperar por um envio que nunca
+ *    vem; o CTA é criar de novo.
+ */
+function FaixaParadaPeloSistema({
+  status,
+  motivo,
+}: {
+  status: StatusCampanha;
+  motivo: string | null;
+}) {
+  const falhou = status === "falhou";
+  const Icone = falhou ? CircleAlert : CirclePause;
+
   return (
     <div
       role="status"
       className="mt-3 flex flex-wrap items-start gap-3 rounded-xl border border-critico/35 bg-critico/10 p-4"
     >
-      <CirclePause aria-hidden className="mt-0.5 size-4 shrink-0 text-critico" />
+      <Icone aria-hidden className="mt-0.5 size-4 shrink-0 text-critico" />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-tinta">O sistema pausou esta campanha</p>
-        <p className="mt-0.5 text-sm text-tinta-2">
-          {motivo ?? "Motivo não registrado."}
+        <p className="text-sm font-medium text-tinta">
+          {falhou ? "Esta campanha não chegou a sair" : "O sistema pausou esta campanha"}
         </p>
+        <p className="mt-0.5 text-sm text-tinta-2">{motivo ?? "Motivo não registrado."}</p>
         <p className="mt-1 text-xs text-tinta-3">
-          Nenhum contato foi perdido: os pendentes voltaram para a fila e ninguém recebe duas vezes.
+          {falhou
+            ? "Ninguém recebeu mensagem desta campanha. Ela não será retomada automaticamente."
+            : "Nenhum contato foi perdido: os pendentes voltaram para a fila e ninguém recebe duas vezes."}
         </p>
       </div>
-      <BotaoLink to="/canais" variante="primario" tamanho="sm">
-        Ver canais
+      <BotaoLink to={falhou ? "/campanhas/nova" : "/canais"} variante="primario" tamanho="sm">
+        {falhou ? "Criar de novo" : "Ver canais"}
       </BotaoLink>
     </div>
   );
