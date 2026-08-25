@@ -105,10 +105,10 @@ export async function chamarApi<T>(caminho: string, opcoes: OpcoesRequisicao = {
   }
 
   if (!resposta.ok) {
-    // 401 com token no bolso é sessão morta (expirada, perfil excluído,
-    // JWT_SECRET trocado). Limpar aqui faz o provider redirecionar para o
-    // login em vez de deixar a tela repetindo a chamada.
-    if (resposta.status === 401 && token) limparSessao();
+    // 401 é sessão morta (expirada, perfil excluído, JWT_SECRET trocado).
+    // Mesmo sem token, a sessão pode ter expirado entre a renderização e esta
+    // chamada; limpar aqui acorda o provider e interrompe o polling.
+    if (resposta.status === 401) limparSessao();
 
     const c = dados as { erro?: string; erros?: Record<string, string> } | null;
     throw new ErroApi(c?.erro ?? `Erro ${resposta.status}.`, resposta.status, c?.erros);
