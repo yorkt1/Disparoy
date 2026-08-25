@@ -670,6 +670,16 @@ function ModalReconectarCanal({
   const [numero, setNumero] = React.useState("");
   const [sessao, setSessao] = React.useState<Pareamento | null>(null);
   const [erro, setErro] = React.useState<string | null>(null);
+  /**
+   * O texto do 409, quando a API pede confirmação para derrubar a sessão viva.
+   *
+   * Estado separado de `erro` de propósito: `erro` é beco sem saída — a pessoa
+   * lê e fecha. Este aqui é uma PERGUNTA, e precisa mudar o rodapé do modal
+   * para oferecer a resposta. Guardar os dois no mesmo lugar foi como o botão
+   * de confirmar deixou de existir: a mensagem "Confirme para prosseguir" caía
+   * no `MensagemErro` e morria ali.
+   */
+  const [confirmarDerrubar, setConfirmarDerrubar] = React.useState<string | null>(null);
   const reconexao = useReconectarCanal();
 
   const conectado = usePareamentoAoVivo(canal?.id ?? null, sessao !== null);
@@ -680,9 +690,18 @@ function ModalReconectarCanal({
     setNumero("");
     setSessao(null);
     setErro(null);
+    setConfirmarDerrubar(null);
   }
 
-  async function solicitar() {
+  /**
+   * Abre o pareamento. Com `forcar`, depois de a pessoa confirmar o 409.
+   *
+   * `forcar` só é enviado quando é `true`: mandar `forcar: false` explícito
+   * daria no mesmo no servidor, mas some com a distinção entre "ainda não
+   * perguntei" e "perguntei e a pessoa disse não" em quem for ler o payload
+   * investigando um disparo cortado no meio.
+   */
+  async function solicitar(forcar = false) {
     if (!canal) return;
     setErro(null);
 
@@ -702,9 +721,17 @@ function ModalReconectarCanal({
           id: canal.id,
           metodoPareamento: metodo,
           ...(numeroPareamento ? { numeroPareamento } : {}),
+          ...(forcar ? { forcar: true } : {}),
         }),
       );
+      setConfirmarDerrubar(null);
     } catch (e) {
+      // 409 é a API dizendo "a sessão está viva, confirma que quer derrubar?".
+      // Não é falha: é a pergunta, e a resposta é reenviar com `forcar`.
+      if (e instanceof ErroApi && e.status === 409) {
+        setConfirmarDerrubar(e.message);
+        return;
+      }
       setErro(mensagemDe(e, "Não foi possível abrir o pareamento."));
     }
   }
@@ -720,26 +747,47 @@ function ModalReconectarCanal({
             ? sessao.codigo
               ? "Digite o código no WhatsApp"
               : "Escaneie o QR Code"
-            : `Conectar ${canal?.nome ?? ""}`
+            : confirmarDerrubar
+              ? `${canal?.nome ?? "Este canal"} já está conectado`
+              : `Conectar ${canal?.nome ?? ""}`
       }
       descricao={
         conectado
           ? undefined
           : sessao
             ? "WhatsApp > Aparelhos conectados > Conectar um aparelho."
-            : "O canal só volta a enviar depois que o aparelho parear de novo."
+            : confirmarDerrubar
+              ? undefined
+              : "O canal só volta a enviar depois que o aparelho parear de novo."
       }
       rodape={
         sessao ? (
           <Botao variante="primario" onClick={fechar}>
             {conectado ? "Concluir" : "Fechar"}
           </Botao>
+        ) : confirmarDerrubar ? (
+          <>
+            <Botao variante="fantasma" onClick={fechar}>
+              Manter conectado
+            </Botao>
+            <Botao
+              variante="perigo"
+              onClick={() => void solicitar(true)}
+              carregando={reconexao.isPending}
+            >
+              Derrubar e reconectar
+            </Botao>
+          </>
         ) : (
           <>
             <Botao variante="fantasma" onClick={fechar}>
               Cancelar
             </Botao>
-            <Botao variante="primario" onClick={solicitar} carregando={reconexao.isPending}>
+            <Botao
+              variante="primario"
+              onClick={() => void solicitar()}
+              carregando={reconexao.isPending}
+            >
               {metodo === "codigo" ? "Gerar código" : "Gerar QR Code"}
             </Botao>
           </>
@@ -759,6 +807,19 @@ function ModalReconectarCanal({
           aoGerarNovo={() => void solicitar()}
           gerando={reconexao.isPending}
         />
+      ) : confirmarDerrubar ? (
+        /*
+         * O texto vem da API, não daqui.
+         *
+         * Quem sabe o que vai ser derrubado é o servidor — ele perguntou ao
+         * gateway. Reescrever a frase no front criaria uma segunda versão do
+         * aviso, que divergiria da do servidor no primeiro ajuste e explicaria
+         * ao operador uma consequência diferente da que vai acontecer.
+         */
+        <div className="flex items-start gap-3 rounded-lg bg-critico/10 p-3.5 ring-1 ring-inset ring-critico/25">
+          <PlugZap className="mt-0.5 size-4 shrink-0 text-critico" />
+          <p className="text-sm leading-relaxed text-tinta-2">{confirmarDerrubar}</p>
+        </div>
       ) : (
         <div className="flex flex-col gap-4">
           <EscolhaMetodo metodo={metodo} aoMudar={setMetodo} />

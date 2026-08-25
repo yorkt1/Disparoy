@@ -334,7 +334,25 @@ export function useCriarCanal() {
 export function useReconectarCanal() {
   const invalidar = useInvalidar();
   return useMutation({
-    mutationFn: (v: { id: string; metodoPareamento: MetodoPareamento; numeroPareamento?: string }) => {
+    mutationFn: (v: {
+      id: string;
+      metodoPareamento: MetodoPareamento;
+      numeroPareamento?: string;
+      /**
+       * Confirma derrubar uma sessão que ainda está de pé.
+       *
+       * A API pergunta ao gateway antes de reconectar e devolve 409 quando o
+       * canal está mesmo conectado — reiniciar a instância ali não conserta
+       * nada e corta a campanha que estiver enviando por ele. O 409 termina em
+       * "Confirme para prosseguir", e ESTE campo é a confirmação.
+       *
+       * Sem ele o campo não existia no front, e a tela mostrava um pedido de
+       * confirmação que não tinha como ser confirmado: o operador lia
+       * "Confirme para prosseguir" e não havia botão nenhum. Quem manda é
+       * `ModalReconectarCanal`, depois de mostrar o que vai ser derrubado.
+       */
+      forcar?: boolean;
+    }) => {
       const { id, ...corpo } = v;
       return api.post<Pareamento>(`/canais/${id}/reconectar`, corpo);
     },
