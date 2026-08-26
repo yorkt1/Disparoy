@@ -20,6 +20,8 @@ const ACOES: Record<AcaoLog, { texto: string; tom: TomBadge }> = {
   // que nenhuma mensagem foi enviada, não o nome interno do mecanismo.
   "campanha.agendamento_expirado": { texto: "Agendamento não saiu no horário", tom: "critico" },
   "campanha.rascunho_salvo": { texto: "Rascunho salvo", tom: "neutro" },
+  "campanha.editada": { texto: "Campanha editada", tom: "aviso" },
+  "campanha.excluida": { texto: "Campanha excluída", tom: "critico" },
   "midia.upload": { texto: "Upload de mídia", tom: "neutro" },
   "spintax.criado": { texto: "Spintax criado", tom: "neutro" },
   "spintax.excluido": { texto: "Spintax excluído", tom: "critico" },

@@ -25,6 +25,9 @@ const PaginaNovaCampanha = lazy(() =>
 const PaginaDetalheCampanha = lazy(() =>
   import("@/paginas/campanha-detalhe").then((m) => ({ default: m.PaginaDetalheCampanha })),
 );
+const PaginaEditarCampanha = lazy(() =>
+  import("@/paginas/campanha-editar").then((m) => ({ default: m.PaginaEditarCampanha })),
+);
 const PaginaTemplates = lazy(() =>
   import("@/paginas/templates").then((m) => ({ default: m.PaginaTemplates })),
 );
@@ -59,6 +62,7 @@ export function App() {
           <Route path="/campanhas" element={<PaginaCampanhas />} />
           <Route path="/campanhas/nova" element={<PaginaNovaCampanha />} />
           <Route path="/campanhas/:id" element={<PaginaDetalheCampanha />} />
+          <Route path="/campanhas/:id/editar" element={<PaginaEditarCampanha />} />
           <Route path="/spintax" element={<PaginaSpintax />} />
           {/* Templates sai do menu mas continua acessível: o backend segue
               íntegro para quando houver canal de API Oficial da Meta. */}

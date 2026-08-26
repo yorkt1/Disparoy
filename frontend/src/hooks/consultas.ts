@@ -3,6 +3,7 @@ import type {
   AmostraFalha,
   Aviso,
   Campanha,
+  CampanhaEdicao,
   Canal,
   ContatoDaCampanha,
   Diagnostico,
@@ -18,7 +19,9 @@ import type {
   Template,
   Usuario,
 } from "@disparoy/dominio";
-import { api } from "@/lib/api";
+import { campanhaEntradaSchema } from "@disparoy/dominio";
+import type { CampanhaEntrada } from "@disparoy/dominio";
+import { api, ErroApi } from "@/lib/api";
 
 /**
  * Camada de dados do SPA.
@@ -77,6 +80,21 @@ export interface Sessao {
   disparo: EstadoDisparo;
 }
 
+export interface EstadoSaudeApi {
+  ok: boolean;
+  banco: "ok" | "indisponivel";
+}
+
+export function useSaudeApi() {
+  return useQuery({
+    queryKey: ["saude-api"],
+    queryFn: () => api.get<EstadoSaudeApi>("/saude"),
+    staleTime: 20_000,
+    refetchInterval: 20_000,
+    retry: false,
+  });
+}
+
 /**
  * É a conta que administra o SISTEMA (cria empresas e acessos)?
  *
@@ -94,6 +112,7 @@ export function useSessao(habilitado = true) {
     queryKey: chaves.eu,
     queryFn: () => api.get<Sessao>("/eu"),
     staleTime: 60_000,
+    refetchInterval: 20_000,
     // Sem sessão a chamada só renderia 401. Quem decide é o PainelLayout.
     enabled: habilitado,
   });
@@ -181,6 +200,7 @@ export function useCanais() {
   return useQuery({
     queryKey: chaves.canais,
     queryFn: () => api.get<{ canais: Canal[] }>("/canais").then((r) => r.canais),
+    refetchInterval: 20_000,
   });
 }
 
@@ -246,7 +266,7 @@ export function useVerificarCanal() {
   return useMutation({
     mutationFn: (id: string) =>
       api.post<{ canal: Canal; confirmado: boolean }>(`/canais/${id}/verificar`),
-    onSuccess: () => invalidar("canais"),
+    onSuccess: () => invalidar("canais", "campanhas", "metricas", "avisos"),
   });
 }
 
@@ -356,7 +376,7 @@ export function useReconectarCanal() {
       const { id, ...corpo } = v;
       return api.post<Pareamento>(`/canais/${id}/reconectar`, corpo);
     },
-    onSuccess: () => invalidar("canais"),
+    onSuccess: () => invalidar("canais", "campanhas", "metricas", "avisos"),
   });
 }
 
@@ -408,8 +428,39 @@ export function useExcluirSpintax() {
 export function useCriarCampanha() {
   const invalidar = useInvalidar();
   return useMutation({
-    mutationFn: (dados: unknown) => api.post<{ campanha: ResumoCampanha }>("/campanhas", dados),
+    mutationFn: (dados: CampanhaEntrada) => {
+      const resultado = campanhaEntradaSchema.safeParse(dados);
+      if (!resultado.success) {
+        const campos: Record<string, string> = {};
+        for (const erro of resultado.error.issues) {
+          const caminho = erro.path.join(".");
+          if (caminho && !campos[caminho]) campos[caminho] = erro.message;
+        }
+        throw new ErroApi(resultado.error.issues[0]?.message ?? "Confira os dados da campanha.", 400, campos);
+      }
+      return api.post<{ campanha: ResumoCampanha }>("/campanhas", resultado.data);
+    },
     onSuccess: () => invalidar("campanhas", "metricas"),
+  });
+}
+
+export function useEditarCampanha() {
+  const invalidar = useInvalidar();
+  return useMutation({
+    mutationFn: ({ id, ...dados }: { id: string } & CampanhaEdicao) =>
+      api.patch<{ campanha: ResumoCampanha }>(`/campanhas/${id}`, dados),
+    onSuccess: (_resposta, variaveis) => {
+      invalidar("campanhas", "campanha", "metricas", "avisos");
+      void variaveis;
+    },
+  });
+}
+
+export function useExcluirCampanha() {
+  const invalidar = useInvalidar();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<{ excluido: string }>(`/campanhas/${id}`),
+    onSuccess: () => invalidar("campanhas", "metricas", "avisos"),
   });
 }
 

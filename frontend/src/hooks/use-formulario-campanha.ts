@@ -174,6 +174,16 @@ export function avaliarEtapas(estado: EstadoCampanha): VereditoEtapas {
 
   const nome = estado.nome.trim().length >= 3;
   const canais = estado.canaisIds.length > 0;
+  const intervaloContatosValido =
+    Number.isInteger(estado.intervaloEntreContatos.minSegundos) &&
+    Number.isInteger(estado.intervaloEntreContatos.maxSegundos) &&
+    estado.intervaloEntreContatos.minSegundos >= 0 &&
+    estado.intervaloEntreContatos.maxSegundos >= estado.intervaloEntreContatos.minSegundos;
+  const intervaloMensagensValido =
+    Number.isInteger(estado.intervaloEntreMensagens.minSegundos) &&
+    Number.isInteger(estado.intervaloEntreMensagens.maxSegundos) &&
+    estado.intervaloEntreMensagens.minSegundos >= 0 &&
+    estado.intervaloEntreMensagens.maxSegundos >= estado.intervaloEntreMensagens.minSegundos;
   const sequencia = estado.sequencia.every((m) =>
     m.tipo === "midia" ? Boolean(m.midia) : m.corpo.trim().length > 0,
   );
@@ -185,6 +195,12 @@ export function avaliarEtapas(estado: EstadoCampanha): VereditoEtapas {
   const pendencias: string[] = [];
   if (!nome) pendencias.push("Dê um nome à campanha (mínimo 3 caracteres).");
   if (!canais) pendencias.push("Selecione ao menos um canal.");
+  if (!intervaloContatosValido) {
+    pendencias.push("Corrija o intervalo entre contatos: o máximo deve ser maior ou igual ao mínimo.");
+  }
+  if (!intervaloMensagensValido) {
+    pendencias.push("Corrija o intervalo entre mensagens: o máximo deve ser maior ou igual ao mínimo.");
+  }
   if (!sequencia) pendencias.push("Há mensagens vazias na sequência.");
   if (contatosElegiveis === 0) {
     pendencias.push("Adicione os contatos por planilha ou colando os números.");

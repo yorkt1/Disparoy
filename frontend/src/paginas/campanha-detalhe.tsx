@@ -1,11 +1,13 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ChevronLeft,
   CircleAlert,
   CirclePause,
   Clock,
   MessageSquare,
+  Pencil,
   Play,
+  Trash2,
   Users,
 } from "lucide-react";
 import type { StatusCampanha } from "@disparoy/dominio";
@@ -21,7 +23,12 @@ import { Carregando, ErroCarregamento } from "@/components/ui/estados";
 import { useToast } from "@/components/ui/toast";
 import { GraficoStatus } from "@/components/charts/grafico-status";
 import { ROTULO_CONEXAO, SeloCampanha } from "@/components/campanhas/selo-status";
-import { useAlterarExecucao, useCampanha, useCanais } from "@/hooks/consultas";
+import {
+  useAlterarExecucao,
+  useCampanha,
+  useCanais,
+  useExcluirCampanha,
+} from "@/hooks/consultas";
 import { ErroApi } from "@/lib/api";
 import {
   formatarDataHora,
@@ -35,6 +42,8 @@ export function PaginaDetalheCampanha() {
   const consulta = useCampanha(id);
   const canaisTodos = useCanais();
   const execucao = useAlterarExecucao();
+  const exclusao = useExcluirCampanha();
+  const navegar = useNavigate();
   const { mostrar } = useToast();
 
   if (consulta.isLoading) return <Carregando rotulo="Carregando campanha…" />;
@@ -80,6 +89,25 @@ export function PaginaDetalheCampanha() {
     }
   }
 
+  async function excluir() {
+    const campanhaAtual = campanha;
+    if (!campanhaAtual) return;
+    if (!window.confirm(`Excluir a campanha "${campanhaAtual.nome}"? Essa ação não pode ser desfeita.`)) {
+      return;
+    }
+    try {
+      await exclusao.mutateAsync(id);
+      mostrar({ tipo: "info", titulo: "Campanha excluída" });
+      navegar("/campanhas");
+    } catch (e) {
+      mostrar({
+        tipo: "erro",
+        titulo: "Não foi possível excluir a campanha",
+        descricao: e instanceof ErroApi ? e.message : "Tente novamente.",
+      });
+    }
+  }
+
   return (
     <>
       <div className="mb-6">
@@ -107,20 +135,30 @@ export function PaginaDetalheCampanha() {
             <SeloCampanha status={campanha.status} />
           </div>
 
-          {podePausar || podeRetomar ? (
-            <Botao
-              variante={podePausar ? "secundario" : "primario"}
-              carregando={execucao.isPending}
-              onClick={() => alterar(podePausar ? "pausar" : "retomar")}
-            >
-              {execucao.isPending ? null : podePausar ? (
-                <CirclePause aria-hidden className="size-4" />
-              ) : (
-                <Play aria-hidden className="size-4" />
-              )}
-              {podePausar ? "Pausar" : "Retomar"}
+          <div className="flex flex-wrap items-center gap-2">
+            <BotaoLink to={`/campanhas/${id}/editar`} tamanho="sm" variante="secundario">
+              <Pencil aria-hidden className="size-4" />
+              Editar
+            </BotaoLink>
+            <Botao tamanho="sm" variante="perigo" carregando={exclusao.isPending} onClick={() => void excluir()}>
+              {!exclusao.isPending ? <Trash2 aria-hidden className="size-4" /> : null}
+              Excluir
             </Botao>
-          ) : null}
+            {podePausar || podeRetomar ? (
+              <Botao
+                variante={podePausar ? "secundario" : "primario"}
+                carregando={execucao.isPending}
+                onClick={() => alterar(podePausar ? "pausar" : "retomar")}
+              >
+                {execucao.isPending ? null : podePausar ? (
+                  <CirclePause aria-hidden className="size-4" />
+                ) : (
+                  <Play aria-hidden className="size-4" />
+                )}
+                {podePausar ? "Pausar" : "Retomar"}
+              </Botao>
+            ) : null}
+          </div>
         </div>
 
         <p className="mt-1 text-sm text-tinta-3">
