@@ -1,15 +1,19 @@
 import {
+  Check,
+  CheckCheck,
   CheckCircle2,
   CircleDashed,
   CirclePause,
   Clock,
   HelpCircle,
   Loader2,
+  MessageSquare,
   XCircle,
 } from "lucide-react";
 import { Badge, type TomBadge } from "@/components/ui/primitivos";
 import type {
   ConfiancaCanal,
+  SituacaoContato,
   StatusCampanha,
   StatusCanal,
   StatusTemplate,
@@ -91,6 +95,44 @@ export function SeloCanal({
     </Badge>
   );
 }
+
+/**
+ * Onde cada contato parou dentro da campanha.
+ *
+ * O texto diz o degrau e o que ele IMPLICA, porque a pergunta que o operador
+ * faz olhando a lista não é "qual o status" — é "preciso fazer algo com esta
+ * pessoa?". "Lido" sozinho não responde; "Lido, sem resposta" responde.
+ *
+ * `respondeu` fica com o tom da marca e não com `bom`: verde é o tom de
+ * "entregue e acabou". Resposta não é fim de fluxo, é a pessoa esperando
+ * alguém do outro lado — precisa saltar da tela, não se misturar ao sucesso
+ * silencioso.
+ */
+const SITUACAO: Record<SituacaoContato, { texto: string; tom: TomBadge; icone: React.ReactNode }> = {
+  pendente: { texto: "Na fila", tom: "neutro", icone: <CircleDashed className="size-3.5" /> },
+  falhou: { texto: "Falhou", tom: "critico", icone: <XCircle className="size-3.5" /> },
+  enviado: { texto: "Não lido", tom: "aviso", icone: <Check className="size-3.5" /> },
+  lido: { texto: "Lido, sem resposta", tom: "bom", icone: <CheckCheck className="size-3.5" /> },
+  respondeu: { texto: "Respondeu", tom: "marca", icone: <MessageSquare className="size-3.5" /> },
+};
+
+export function SeloSituacao({ situacao }: { situacao: SituacaoContato }) {
+  const s = SITUACAO[situacao];
+  return (
+    <Badge tom={s.tom} icone={s.icone}>
+      {s.texto}
+    </Badge>
+  );
+}
+
+/** O mesmo rótulo sem o selo — para os botões de filtro, que já têm forma própria. */
+export const ROTULO_SITUACAO: Record<SituacaoContato, string> = {
+  pendente: "Na fila",
+  falhou: "Falhou",
+  enviado: "Não lido",
+  lido: "Lido",
+  respondeu: "Respondeu",
+};
 
 const TEMPLATE: Record<StatusTemplate, { texto: string; tom: TomBadge; icone: React.ReactNode }> = {
   aprovado: { texto: "Aprovado", tom: "bom", icone: <CheckCircle2 className="size-3.5" /> },

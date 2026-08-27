@@ -25,6 +25,7 @@ import { Carregando, ErroCarregamento } from "@/components/ui/estados";
 import { useToast } from "@/components/ui/toast";
 import { GraficoStatus } from "@/components/charts/grafico-status";
 import { ROTULO_CONEXAO, SeloCampanha } from "@/components/campanhas/selo-status";
+import { ListaContatosCampanha } from "@/components/campanhas/lista-contatos-campanha";
 import {
   useAlterarExecucao,
   useCampanha,
@@ -57,7 +58,6 @@ export function PaginaDetalheCampanha() {
   }
 
   const campanha = consulta.data?.campanha;
-  const contatosAmostra = consulta.data?.contatos ?? [];
   if (!campanha) return <ErroCarregamento erro={new Error("Campanha não encontrada.")} />;
 
   const canais = (canaisTodos.data ?? []).filter((c) => campanha.canaisIds.includes(c.id));
@@ -255,6 +255,8 @@ export function PaginaDetalheCampanha() {
             />
           </Card>
 
+          <ListaContatosCampanha id={id} aoVivo={campanha.status === "em_andamento"} />
+
           <Card>
             <CardCabecalho
               titulo="Sequência enviada"
@@ -346,27 +348,6 @@ export function PaginaDetalheCampanha() {
             </CardCorpo>
           </Card>
 
-          {contatosAmostra.length > 0 ? (
-            <Card>
-              <CardCabecalho
-                titulo="Amostra de contatos"
-                descricao={`Primeiros ${Math.min(contatosAmostra.length, 10)} de ${formatarNumero(
-                  campanha.metricas.total,
-                )}`}
-              />
-              <Separador />
-              <CardCorpo className="pt-4">
-                <ul className="flex flex-col gap-1.5">
-                  {contatosAmostra.slice(0, 10).map((c) => (
-                    <li key={c.telefone} className="tabular flex justify-between gap-3 text-xs">
-                      <span className="text-tinta-2">{formatarTelefone(c.telefone)}</span>
-                      <span className="truncate text-tinta-3">{c.variaveis["1"] ?? ""}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardCorpo>
-            </Card>
-          ) : null}
         </div>
       </div>
     </>

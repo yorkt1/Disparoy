@@ -14,6 +14,7 @@ import type {
   Paginado,
   Papel,
   ResumoCampanha,
+  ResumoSituacao,
   Spintax,
   StatusCampanha,
   Template,
@@ -36,6 +37,7 @@ export const chaves = {
   metricas: ["metricas"] as const,
   campanhas: (f?: unknown) => ["campanhas", f ?? {}] as const,
   campanha: (id: string) => ["campanha", id] as const,
+  contatosDaCampanha: (id: string, f?: unknown) => ["campanha", id, "contatos", f ?? {}] as const,
   canais: ["canais"] as const,
   contatos: (f?: unknown) => ["contatos", f ?? {}] as const,
   listas: ["listas"] as const,
@@ -159,6 +161,42 @@ export function useMetricas(aoVivo = false) {
 // --------------------------------------------------------------------------
 // Campanhas
 // --------------------------------------------------------------------------
+
+/**
+ * Os contatos de uma campanha, filtrados por situação.
+ *
+ * Consulta própria, separada de `useCampanha`: trocar o filtro não pode
+ * recarregar métrica, gráfico e sequência da tela inteira — e a tela inteira
+ * se atualiza sozinha a cada 20 s enquanto a campanha roda, o que apagaria a
+ * página em que o operador estava.
+ *
+ * `aoVivo` acompanha o mesmo ritmo do resto do painel. É aqui que ele mais
+ * importa: durante o disparo esta lista é a única tela em que dá para ver
+ * resposta chegando.
+ */
+export function useContatosDaCampanha(
+  id: string,
+  filtros: { pagina?: number; situacao?: string; busca?: string } = {},
+  aoVivo = false,
+) {
+  const p = new URLSearchParams();
+  if (filtros.pagina && filtros.pagina > 1) p.set("pagina", String(filtros.pagina));
+  if (filtros.situacao && filtros.situacao !== "todas") p.set("situacao", filtros.situacao);
+  if (filtros.busca) p.set("busca", filtros.busca);
+
+  return useQuery({
+    queryKey: chaves.contatosDaCampanha(id, filtros),
+    queryFn: () =>
+      api.get<Paginado<ContatoDaCampanha> & { resumo: ResumoSituacao }>(
+        `/campanhas/${id}/contatos?${p}`,
+      ),
+    enabled: Boolean(id),
+    // Sem isto a lista pisca vazia a cada troca de página: o React Query
+    // descarta os dados anteriores enquanto busca a página nova.
+    placeholderData: (anterior) => anterior,
+    refetchInterval: aoVivo ? INTERVALO_AO_VIVO : false,
+  });
+}
 
 export function useCampanhas(filtros: { porPagina?: number; status?: string } = {}) {
   const p = new URLSearchParams();
