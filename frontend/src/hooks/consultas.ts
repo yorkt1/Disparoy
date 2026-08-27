@@ -309,25 +309,6 @@ export function useVerificarCanal() {
 }
 
 /**
- * Reaponta o webhook do canal para a API atual.
- *
- * O sintoma que isto conserta é um canal que envia normalmente e nunca reporta
- * nada de volta — nem entrega, nem leitura, nem resposta. O webhook mora na
- * instância da Evolution e só é gravado no pareamento, então nenhum deploy
- * nosso o conserta.
- */
-export function useRepararWebhook() {
-  const invalidar = useInvalidar();
-  return useMutation({
-    mutationFn: (id: string) =>
-      api.post<{ antes: string | null; reparado: boolean; aviso: string | null }>(
-        `/canais/${id}/reparar-webhook`,
-      ),
-    onSuccess: () => invalidar("canais", "logs"),
-  });
-}
-
-/**
  * Quantos contatos a agenda do canal tem agora.
  *
  * Consultado em laço logo após o pareamento: o WhatsApp sincroniza a agenda

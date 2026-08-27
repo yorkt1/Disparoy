@@ -12,7 +12,6 @@ import {
   Smartphone,
   TimerOff,
   Trash2,
-  Wrench,
 } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { Campo, MensagemErro } from "@/components/ui/campos";
@@ -34,7 +33,6 @@ import {
   useCriarCanal,
   useExcluirCanal,
   useReconectarCanal,
-  useRepararWebhook,
   useVerificarCanal,
   useVinculosCanal,
   type Pareamento,
@@ -179,51 +177,11 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
   const { mostrar } = useToast();
 
   const exclusao = useExcluirCanal();
-  const reparo = useRepararWebhook();
   // Roda em silêncio: o retorno é ignorado de propósito, a tela não anuncia.
   useVerificacaoAutomatica(canais);
-  const emAcao = exclusao.isPending
-    ? (exclusao.variables?.id ?? null)
-    : reparo.isPending
-      ? (reparo.variables ?? null)
-      : null;
+  const emAcao = exclusao.isPending ? (exclusao.variables?.id ?? null) : null;
 
-  /**
-   * Reaponta o webhook do canal para a API atual.
-   *
-   * O aviso de sucesso conta o que estava ANTES porque é isso que fecha o
-   * diagnóstico para quem clicou: "não havia webhook" explica meses de canal
-   * mudo; "apontava para outra URL" explica um deploy que trocou o endereço.
-   * Só dizer "reparado" deixaria o operador sem saber se o problema era esse.
-   */
-  async function repararWebhook(canal: Canal) {
-    try {
-      const r = await reparo.mutateAsync(canal.id);
-      if (!r.reparado) {
-        mostrar({
-          tipo: "erro",
-          titulo: "Não foi possível reapontar o webhook",
-          descricao: r.aviso ?? "Tente novamente.",
-        });
-        return;
-      }
-      mostrar({
-        tipo: "sucesso",
-        titulo: "Webhook reapontado",
-        descricao: r.antes
-          ? `Antes apontava para ${r.antes}. Entrega, leitura e resposta voltam a ser registradas.`
-          : "Este canal não tinha webhook — por isso nunca reportou entrega, leitura nem resposta.",
-      });
-    } catch (e) {
-      mostrar({
-        tipo: "erro",
-        titulo: "Não foi possível reapontar o webhook",
-        descricao: mensagemDe(e, "Tente novamente."),
-      });
-    }
-  }
-
-  const filtrados = canais.filter((c) => status === "todos" || c.status === status);
+    const filtrados = canais.filter((c) => status === "todos" || c.status === status);
 
   /*
    * `mudarStatus` saiu junto com o botão Desconectar.
@@ -490,29 +448,6 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
             >
               <PlugZap aria-hidden className="size-3.5" />
               Conectar
-            </Botao>
-          )}
-          {/*
-            "Reparar" só no canal conectado, e é o botão para UM sintoma
-            específico: o canal envia normalmente e o painel nunca registra
-            entrega, leitura nem resposta. O webhook mora na instância da
-            Evolution e é gravado só no pareamento — um canal pareado antes de
-            a API ter URL pública fica mudo para sempre, e nenhum deploy
-            conserta. Sem este botão, a única saída era derrubar a sessão do
-            cliente e escanear o QR de novo.
-          */}
-          {c.status === "conectado" && (
-            <Botao
-              tamanho="sm"
-              variante="fantasma"
-              disabled={emAcao === c.id}
-              carregando={reparo.isPending && emAcao === c.id}
-              onClick={() => void repararWebhook(c)}
-            >
-              {!(reparo.isPending && emAcao === c.id) && (
-                <Wrench aria-hidden className="size-3.5" />
-              )}
-              Reparar
             </Botao>
           )}
           <Botao
