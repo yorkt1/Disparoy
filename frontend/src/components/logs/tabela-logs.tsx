@@ -32,6 +32,7 @@ const ACOES: Record<AcaoLog, { texto: string; tom: TomBadge }> = {
   "canal.conectado": { texto: "Canal conectado", tom: "bom" },
   "canal.desconectado": { texto: "Canal desconectado", tom: "aviso" },
   "canal.excluido": { texto: "Canal excluído", tom: "critico" },
+  "canal.webhook_reparado": { texto: "Webhook reapontado", tom: "marca" },
   "template.criado": { texto: "Template criado", tom: "neutro" },
   "template.sincronizado": { texto: "Templates sincronizados", tom: "marca" },
   "contatos.importados": { texto: "Contatos importados", tom: "neutro" },
