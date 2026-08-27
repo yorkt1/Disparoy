@@ -22,6 +22,9 @@ const ACOES: Record<AcaoLog, { texto: string; tom: TomBadge }> = {
   "campanha.rascunho_salvo": { texto: "Rascunho salvo", tom: "neutro" },
   "campanha.editada": { texto: "Campanha editada", tom: "aviso" },
   "campanha.excluida": { texto: "Campanha excluída", tom: "critico" },
+  // "aviso" e não "neutro": é o mesmo tom de `contatos.extraidos`, porque é o
+  // mesmo fato — dado pessoal saiu do sistema em planilha.
+  "campanha.relatorio_exportado": { texto: "Relatório exportado", tom: "aviso" },
   "midia.upload": { texto: "Upload de mídia", tom: "neutro" },
   "spintax.criado": { texto: "Spintax criado", tom: "neutro" },
   "spintax.excluido": { texto: "Spintax excluído", tom: "critico" },

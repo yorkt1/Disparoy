@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ChevronLeft,
   CircleAlert,
   CirclePause,
   Clock,
+  Download,
   MessageSquare,
   Pencil,
   Play,
@@ -29,7 +31,7 @@ import {
   useCanais,
   useExcluirCampanha,
 } from "@/hooks/consultas";
-import { ErroApi } from "@/lib/api";
+import { baixarArquivo, ErroApi } from "@/lib/api";
 import {
   formatarDataHora,
   formatarNumero,
@@ -45,6 +47,7 @@ export function PaginaDetalheCampanha() {
   const exclusao = useExcluirCampanha();
   const navegar = useNavigate();
   const { mostrar } = useToast();
+  const [baixando, setBaixando] = useState(false);
 
   if (consulta.isLoading) return <Carregando rotulo="Carregando campanha…" />;
   if (consulta.error) {
@@ -86,6 +89,39 @@ export function PaginaDetalheCampanha() {
         titulo: "Não foi possível alterar a campanha",
         descricao: e instanceof ErroApi ? e.message : "Tente novamente.",
       });
+    }
+  }
+
+  /**
+   * Baixa o relatório da campanha.
+   *
+   * Uma linha por contato, com até cinco respostas dele. Baixar não confirma
+   * leitura nenhuma no WhatsApp: o painel lê o que o webhook já havia gravado,
+   * e a notificação continua no celular de quem operou o disparo.
+   */
+  async function baixarRelatorio() {
+    const campanhaAtual = campanha;
+    if (!campanhaAtual) return;
+
+    setBaixando(true);
+    try {
+      const { total } = await baixarArquivo(
+        `/campanhas/${id}/relatorio.csv`,
+        `relatorio-${campanhaAtual.nome}.csv`,
+      );
+      mostrar({
+        tipo: "sucesso",
+        titulo: `${formatarNumero(total ?? 0)} contato(s) no relatório`,
+        descricao: "CSV separado por ponto e vírgula, pronto para abrir no Excel.",
+      });
+    } catch (e) {
+      mostrar({
+        tipo: "erro",
+        titulo: "Não foi possível baixar o relatório",
+        descricao: e instanceof ErroApi ? e.message : "Tente novamente.",
+      });
+    } finally {
+      setBaixando(false);
     }
   }
 
@@ -136,6 +172,15 @@ export function PaginaDetalheCampanha() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <Botao
+              tamanho="sm"
+              variante="secundario"
+              carregando={baixando}
+              onClick={() => void baixarRelatorio()}
+            >
+              {!baixando ? <Download aria-hidden className="size-4" /> : null}
+              Relatório
+            </Botao>
             <BotaoLink to={`/campanhas/${id}/editar`} tamanho="sm" variante="secundario">
               <Pencil aria-hidden className="size-4" />
               Editar
