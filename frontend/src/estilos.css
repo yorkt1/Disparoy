@@ -12,6 +12,9 @@
   --color-superficie-3: #2a2a28;
   --color-borda: #2c2c2a;
   --color-borda-forte: #383835;
+  /* Realce de borda no hover. Era literal em quatro arquivos; um token evita
+     que "a borda acende" signifique tons diferentes conforme o componente. */
+  --color-borda-hover: #4a4a46;
 
   --color-tinta: #ffffff;
   --color-tinta-2: #c3c2b7;

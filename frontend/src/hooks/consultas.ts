@@ -340,7 +340,17 @@ export function useAjustarCanal() {
       estagioAquecimento?: number;
     }) => {
       const { id, ...corpo } = v;
-      return api.patch<{ canal: Canal }>(`/canais/${id}`, corpo);
+      /*
+       * `aviso` chega quando o ajuste valeu só localmente.
+       *
+       * Desconectar um canal de QR encerra a sessão na Evolution antes de mudar
+       * o status aqui. Quando a Evolution recusa, o status muda mesmo assim — e
+       * o número continua pareado lá. Quem ligar este hook numa tela PRECISA
+       * exibir este campo: sem ele, o painel afirma "desconectado" com uma
+       * convicção que não tem, e o operador entrega o chip achando que a sessão
+       * caiu.
+       */
+      return api.patch<{ canal: Canal; aviso?: string }>(`/canais/${id}`, corpo);
     },
     onSuccess: () => invalidar("canais"),
   });

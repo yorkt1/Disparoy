@@ -103,7 +103,7 @@ export function Dropzone({
           "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-6 py-9 text-center transition-colors",
           arrastando
             ? "border-marca bg-marca/8"
-            : "border-borda-forte bg-superficie-2 hover:border-[#4a4a46] hover:bg-superficie-3",
+            : "border-borda-forte bg-superficie-2 hover:border-borda-hover hover:bg-superficie-3",
         )}
       >
         {carregando ? (

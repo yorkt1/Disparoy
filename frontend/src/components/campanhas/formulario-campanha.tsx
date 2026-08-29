@@ -303,7 +303,7 @@ function OpcaoEnvio({
         "flex items-start gap-3 rounded-lg border px-3.5 py-3 text-left transition-colors",
         selecionada
           ? "border-marca bg-marca/8"
-          : "border-borda-forte bg-superficie-2 hover:border-[#4a4a46]",
+          : "border-borda-forte bg-superficie-2 hover:border-borda-hover",
       )}
     >
       <span aria-hidden className={cn("mt-0.5", selecionada ? "text-marca-tenue" : "text-tinta-3")}>

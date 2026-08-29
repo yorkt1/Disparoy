@@ -1,8 +1,8 @@
 
 import { Link } from "react-router-dom";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Megaphone } from "lucide-react";
 import { Tabela, type Coluna } from "@/components/ui/tabela";
-import { BarraProgresso } from "@/components/ui/primitivos";
+import { BarraProgresso, EstadoVazio } from "@/components/ui/primitivos";
 import { SeloCampanha } from "@/components/campanhas/selo-status";
 import type { ResumoCampanha } from "@disparoy/dominio";
 import { formatarData, formatarNumero } from "@/lib/formato";
@@ -91,6 +91,26 @@ export function TabelaUltimasCampanhas({
     },
   ];
 
+  /*
+   * "Não existe nenhuma" e "a busca não achou" são telas diferentes.
+   *
+   * O `vazio` da `Tabela` cobre só o segundo caso: ela filtra por dentro, e a
+   * mensagem aparece depois da busca. Passar "Crie a primeira" ali mandava o
+   * operador criar campanha porque digitou um nome que não casou — com
+   * dezenas delas na tela um segundo antes. É o mesmo desenho de
+   * `lista-templates`, `lista-canais` e `lista-usuarios`: estado vazio fora da
+   * tabela, mensagem de filtro dentro.
+   */
+  if (campanhas.length === 0) {
+    return (
+      <EstadoVazio
+        icone={<Megaphone className="size-7" />}
+        titulo="Nenhuma campanha ainda"
+        descricao="Crie a primeira em “Nova Campanha”."
+      />
+    );
+  }
+
   return (
     <Tabela
       colunas={colunas}
@@ -99,7 +119,7 @@ export function TabelaUltimasCampanhas({
       porPagina={porPagina}
       buscaPlaceholder={comBusca ? "Buscar campanha pelo nome…" : undefined}
       textoBusca={comBusca ? (c) => `${c.nome} ${c.canaisRotulo}` : undefined}
-      vazio="Nenhuma campanha ainda. Crie a primeira em “Nova Campanha”."
+      vazio="Nenhuma campanha com esse nome."
     />
   );
 }

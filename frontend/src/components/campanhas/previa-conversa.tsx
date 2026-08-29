@@ -17,6 +17,14 @@ const ICONE_MIDIA: Record<TipoMidia, React.ReactNode> = {
  *
  * Sorteia as variações de verdade, então o botão "sortear de novo" mostra
  * exatamente a variedade que a campanha vai produzir — não um texto fixo.
+ *
+ * ÚNICO lugar do painel com cor em hexadecimal literal, e é de propósito:
+ * `#0b141a`, `#005c4b`, `#202c33` e companhia são a paleta do WhatsApp, não a
+ * do Disparoy. Trocá-las pelos tokens do tema — que é o reflexo correto em
+ * qualquer outro componente — faria a prévia parecer o painel em vez de
+ * parecer o aplicativo, e o operador perderia justamente a referência que
+ * usa para conferir se a mensagem vai sair como ele imagina. Elas também não
+ * acompanham mudança de tema nossa, porque o WhatsApp não acompanha.
  */
 export function PreviaConversa({
   sequencia,

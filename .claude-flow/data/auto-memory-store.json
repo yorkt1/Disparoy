@@ -1,0 +1,15 @@
+[
+  {
+    "id": "mem-conversai-projeto-separado-----0",
+    "key": "-",
+    "content": "name: conversai-projeto-separado\ndescription: \"ConversAI é um segundo produto do usuário, em pasta separada, com arquitetura oposta à do Disparoy\"\nmetadata: \n  node_type: memory\n  type: project\n  originSessionId: a3fa3130-f256-48cd-8d71-42327c206c73\n  modified: 2026-08-15T11:43:35.876Z\n---\n\nO usuário toca dois produtos em paralelo: **Disparoy** (`Projetos/Disparoy` +\n`Projetos/Disparoy-Backend`) e **ConversAI** (`Projetos/conversai`) — atendimento\nmulticanal WhatsApp + CRM. São produtos distint…",
+    "summary": "---",
+    "namespace": "conversai-projeto-separado",
+    "type": "semantic",
+    "metadata": {
+      "sourceFile": "C:\\Users\\guilh\\.claude\\projects\\c--Users-guilh-Documents-Projetos-Disparoy\\memory\\conversai-projeto-separado.md",
+      "bootstrapped": true
+    },
+    "createdAt": 1788019188029
+  }
+]
