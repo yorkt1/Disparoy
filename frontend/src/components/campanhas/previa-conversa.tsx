@@ -2,7 +2,7 @@
 import * as React from "react";
 import { Check, FileText, Music, Play, RefreshCw, Image as ImagemIcone } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
-import type { Contato, MensagemSequencia, Spintax, TipoMidia } from "@disparoy/dominio";
+import type { MensagemSequencia, Spintax, TipoMidia } from "@disparoy/dominio";
 import { indexarVariacoes, renderizarMensagem } from "@disparoy/dominio";
 
 const ICONE_MIDIA: Record<TipoMidia, React.ReactNode> = {
@@ -33,7 +33,12 @@ export function PreviaConversa({
 }: {
   sequencia: MensagemSequencia[];
   variacoes: Spintax[];
-  contatoExemplo?: Contato;
+  /*
+   * O contato do público, e não um `Contato` do cadastro — que não existe mais.
+   * Basta o que a renderização consome: nome para o cabeçalho da conversa,
+   * variáveis para o corpo.
+   */
+  contatoExemplo?: { nome: string | null; variaveis: Record<string, string> };
 }) {
   const [semente, setSemente] = React.useState(0);
 

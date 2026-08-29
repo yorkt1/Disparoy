@@ -21,6 +21,10 @@ const ACOES: Record<AcaoLog, { texto: string; tom: TomBadge }> = {
   "campanha.agendamento_expirado": { texto: "Agendamento não saiu no horário", tom: "critico" },
   "campanha.rascunho_salvo": { texto: "Rascunho salvo", tom: "neutro" },
   "campanha.editada": { texto: "Campanha editada", tom: "aviso" },
+  // "aviso" e não "neutro": a cópia leva o público inteiro do original —
+  // telefone e variáveis de gente real mudando de campanha sem ninguém
+  // reimportar planilha. É o mesmo peso de `contatos.extraidos`.
+  "campanha.duplicada": { texto: "Campanha duplicada", tom: "aviso" },
   "campanha.excluida": { texto: "Campanha excluída", tom: "critico" },
   // "aviso" e não "neutro": é o mesmo tom de `contatos.extraidos`, porque é o
   // mesmo fato — dado pessoal saiu do sistema em planilha.

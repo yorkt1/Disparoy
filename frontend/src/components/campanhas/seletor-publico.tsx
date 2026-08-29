@@ -70,7 +70,20 @@ export function SeletorPublico({
 
       const colunaTelefone = detectarColunaTelefone(lidas.colunas);
       const colunaNome = detectarColunaNome(lidas.colunas, colunaTelefone);
-      const r = montarContatos(lidas.linhas, colunaTelefone, { colunaNome });
+      /*
+       * `colunas` é o que faz `{{1}}` valer alguma coisa.
+       *
+       * Sem ele, `montarContatos` caía no mapeamento vazio e `variaveis` saía
+       * `{}` para a lista inteira: a tela prometia "as demais colunas viram
+       * variáveis", o editor tinha um botão que insere `{{1}}`, e a campanha
+       * era disparada com "Olá {{1}}" literal. A ordem vem da planilha, e não
+       * das chaves da primeira linha, porque linha com célula vazia perde a
+       * coluna e deslocaria `{{2}}` para outro campo sem avisar.
+       */
+      const r = montarContatos(lidas.linhas, colunaTelefone, {
+        colunaNome,
+        colunas: lidas.colunas,
+      });
 
       aplicar(
         r.contatos.filter((c) => c.valido).map(paraPublico),

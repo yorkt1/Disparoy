@@ -504,6 +504,21 @@ export function useEditarCampanha() {
   });
 }
 
+/**
+ * Copia a campanha inteira — texto, canais, intervalos e público — em rascunho.
+ *
+ * Invalida `campanhas` e `metricas`, não `campanha`: a original não mudou. A
+ * cópia é nova e a tela navega para ela, então não há cache dela para sujar.
+ */
+export function useDuplicarCampanha() {
+  const invalidar = useInvalidar();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.post<{ campanha: ResumoCampanha }>(`/campanhas/${id}/duplicar`),
+    onSuccess: () => invalidar("campanhas", "metricas"),
+  });
+}
+
 export function useExcluirCampanha() {
   const invalidar = useInvalidar();
   return useMutation({

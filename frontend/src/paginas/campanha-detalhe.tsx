@@ -5,6 +5,7 @@ import {
   CircleAlert,
   CirclePause,
   Clock,
+  Copy,
   Download,
   MessageSquare,
   Pencil,
@@ -30,6 +31,7 @@ import {
   useAlterarExecucao,
   useCampanha,
   useCanais,
+  useDuplicarCampanha,
   useExcluirCampanha,
 } from "@/hooks/consultas";
 import { baixarArquivo, ErroApi } from "@/lib/api";
@@ -46,6 +48,7 @@ export function PaginaDetalheCampanha() {
   const canaisTodos = useCanais();
   const execucao = useAlterarExecucao();
   const exclusao = useExcluirCampanha();
+  const duplicacao = useDuplicarCampanha();
   const navegar = useNavigate();
   const { mostrar } = useToast();
   const [baixando, setBaixando] = useState(false);
@@ -125,6 +128,37 @@ export function PaginaDetalheCampanha() {
     }
   }
 
+  /**
+   * Duplicar leva para a CÓPIA, não deixa o operador na original.
+   *
+   * O clique só existe porque ele vai mexer no texto ou na data — quem quer a
+   * campanha idêntica já a tem rodando. Ficar na tela antiga obrigaria a achar
+   * a cópia na lista, e as duas têm quase o mesmo nome.
+   *
+   * Sem `window.confirm`: a cópia nasce em rascunho, não dispara nada e é
+   * excluível em dois cliques. Confirmar cada ação reversível é o que ensina o
+   * operador a clicar "OK" sem ler — inclusive no diálogo de excluir.
+   */
+  async function duplicar() {
+    const campanhaAtual = campanha;
+    if (!campanhaAtual) return;
+    try {
+      const { campanha: copia } = await duplicacao.mutateAsync(id);
+      mostrar({
+        tipo: "sucesso",
+        titulo: "Campanha duplicada",
+        descricao: `"${copia.nome}" foi criada como rascunho com ${formatarNumero(copia.metricas.total)} contato(s). Nada foi disparado.`,
+      });
+      navegar(`/campanhas/${copia.id}`);
+    } catch (e) {
+      mostrar({
+        tipo: "erro",
+        titulo: "Não foi possível duplicar a campanha",
+        descricao: e instanceof ErroApi ? e.message : "Tente novamente.",
+      });
+    }
+  }
+
   async function excluir() {
     const campanhaAtual = campanha;
     if (!campanhaAtual) return;
@@ -185,6 +219,15 @@ export function PaginaDetalheCampanha() {
               <Pencil aria-hidden className="size-4" />
               Editar
             </BotaoLink>
+            <Botao
+              tamanho="sm"
+              variante="secundario"
+              carregando={duplicacao.isPending}
+              onClick={() => void duplicar()}
+            >
+              {!duplicacao.isPending ? <Copy aria-hidden className="size-4" /> : null}
+              Duplicar
+            </Botao>
             <Botao tamanho="sm" variante="perigo" carregando={exclusao.isPending} onClick={() => void excluir()}>
               {!exclusao.isPending ? <Trash2 aria-hidden className="size-4" /> : null}
               Excluir

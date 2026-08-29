@@ -1,6 +1,12 @@
 import * as React from "react";
 import { Search } from "lucide-react";
-import type { ContatoDaCampanha, ResumoSituacao, SituacaoContato } from "@disparoy/dominio";
+import type {
+  ContatoDaCampanha,
+  RespostaRecebida,
+  ResumoSituacao,
+  SituacaoContato,
+  TipoResposta,
+} from "@disparoy/dominio";
 import { Card, CardCabecalho, EstadoVazio, Separador } from "@/components/ui/primitivos";
 import { Paginacao } from "@/components/ui/tabela";
 import { Carregando } from "@/components/ui/estados";
@@ -178,7 +184,7 @@ export function ListaContatosCampanha({ id, aoVivo }: { id: string; aoVivo: bool
 function LinhaContato({ contato }: { contato: ContatoDaCampanha }) {
   return (
     <tr className="border-b border-borda last:border-0">
-      <td className="px-5 py-3">
+      <td className="px-5 py-3 align-top">
         <p className="text-tinta">{contato.nome ?? formatarTelefone(contato.telefone)}</p>
         {contato.nome ? (
           <p className="tabular mt-0.5 text-xs text-tinta-3">
@@ -193,16 +199,65 @@ function LinhaContato({ contato }: { contato: ContatoDaCampanha }) {
         {contato.situacao === "falhou" && contato.motivo ? (
           <p className="mt-1 text-xs text-critico">{contato.motivo}</p>
         ) : null}
+        {/*
+          O que a pessoa escreveu, embaixo de quem ela é.
+          A coluna "Respostas" dizia 3 e o operador não tinha como saber que uma
+          delas era "pode me ligar agora?" sem baixar o CSV do relatório — o
+          texto estava gravado desde sempre e nunca chegava à tela. Aqui, e não
+          numa coluna própria: resposta é frase, não valor, e uma coluna a
+          espremeria em duas palavras por linha.
+        */}
+        {contato.ultimasRespostas.length > 0 ? (
+          <ul className="mt-1.5 flex flex-col gap-1">
+            {contato.ultimasRespostas.map((r, i) => (
+              <li
+                key={`${contato.id}-${i}`}
+                className="border-l-2 border-marca/40 pl-2 text-xs text-tinta-2"
+              >
+                <span className="whitespace-pre-wrap break-words">{textoDaResposta(r)}</span>
+                {r.recebidaEm ? (
+                  <span className="tabular ml-1.5 text-tinta-3">
+                    {formatarDataHora(r.recebidaEm)}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </td>
-      <td className="px-5 py-3">
+      <td className="px-5 py-3 align-top">
         <SeloSituacao situacao={contato.situacao} />
       </td>
-      <td className="tabular px-5 py-3 text-right text-tinta-2">
+      <td className="tabular px-5 py-3 text-right align-top text-tinta-2">
         {contato.respostas > 0 ? formatarNumero(contato.respostas) : "—"}
       </td>
-      <td className="tabular px-5 py-3 text-xs text-tinta-3">
+      <td className="tabular px-5 py-3 align-top text-xs text-tinta-3">
         {contato.lidaEm ? formatarDataHora(contato.lidaEm) : "—"}
       </td>
     </tr>
   );
+}
+
+/**
+ * Mídia não tem texto, e uma linha em branco se lê como "não respondeu".
+ *
+ * O rótulo entre colchetes é o mesmo do CSV do relatório de propósito: o
+ * operador que confere a planilha e a tela lado a lado não deve ter de
+ * traduzir dois vocabulários para o mesmo áudio.
+ */
+const ROTULO_MIDIA: Record<Exclude<TipoResposta, "texto">, string> = {
+  imagem: "[imagem]",
+  audio: "[áudio]",
+  video: "[vídeo]",
+  documento: "[documento]",
+  figurinha: "[figurinha]",
+  outro: "[mensagem]",
+};
+
+function textoDaResposta(r: RespostaRecebida): string {
+  const texto = r.texto.trim();
+  // Legenda de imagem chega com texto E tipo `imagem`: mostrar os dois diz o
+  // que a pessoa escreveu sem esconder que veio anexo junto.
+  if (r.tipo === "texto") return texto || ROTULO_MIDIA.outro;
+  return texto ? `${ROTULO_MIDIA[r.tipo]} ${texto}` : ROTULO_MIDIA[r.tipo];
 }

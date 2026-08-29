@@ -190,7 +190,19 @@ export function FormularioCampanha({
               />
             </div>
 
-            <PreviaConversa sequencia={estado.sequencia} variacoes={variacoes} />
+            {/*
+              O 1º contato do público entra na prévia, e não um exemplo
+              inventado: é o que faz "Olá {{1}}" aparecer como "Olá Maria" ou
+              — se o mapeamento estiver errado — continuar `{{1}}` na tela do
+              operador, ANTES de sair para a lista inteira. A prévia já
+              prometia isso no rótulo ("importe contatos para preencher as
+              variáveis") e nunca recebia contato nenhum.
+            */}
+            <PreviaConversa
+              sequencia={estado.sequencia}
+              variacoes={variacoes}
+              contatoExemplo={estado.publico[0]}
+            />
           </div>
         </Etapa>
 
