@@ -165,6 +165,20 @@ function ModalNovaEmpresa({ aberto, aoFechar }: { aberto: boolean; aoFechar: () 
 }
 
 /**
+ * A senha com que todo acesso novo nasce.
+ *
+ * Decisão do dono do produto em 30/08/2026: uma senha padrão, igual para todos,
+ * em vez de uma gerada por acesso. O campo continua editável — dá para trocar
+ * antes de criar quando um acesso precisar da própria.
+ *
+ * O que ela custa, para quem for reabrir: quem descobrir esta senha entra em
+ * qualquer acesso cujo e-mail conheça, em qualquer empresa, e lá dentro vê a
+ * base de contatos e dispara em nome do WhatsApp do cliente. A trava que
+ * recusava senha óbvia foi removida da API junto com esta mudança.
+ */
+const SENHA_PADRAO = "123456";
+
+/**
  * O login que a empresa vai usar.
  *
  * Não há convite por e-mail nem auto-cadastro: a senha é definida aqui e
@@ -180,7 +194,7 @@ function ModalNovoAcesso({
 }) {
   const [nome, setNome] = React.useState("");
   const [email, setEmail] = React.useState("");
-  const [senha, setSenha] = React.useState("");
+  const [senha, setSenha] = React.useState(SENHA_PADRAO);
   const [papel, setPapel] = React.useState<"admin" | "operator">("admin");
   const [erro, setErro] = React.useState<string | null>(null);
   const [criado, setCriado] = React.useState<{ email: string; senha: string } | null>(null);
@@ -201,7 +215,7 @@ function ModalNovoAcesso({
 
   function fechar() {
     aoFechar();
-    setSenha("");
+    setSenha(SENHA_PADRAO);
     setErro(null);
     setCriado(null);
     setPapel("admin");
@@ -250,7 +264,10 @@ function ModalNovoAcesso({
               variante="primario"
               onClick={salvar}
               carregando={criacao.isPending}
-              disabled={nome.trim().length < 2 || !email.includes("@") || senha.length < 8}
+              // 6, e não 8: é o mínimo de `senhaSchema`, o mesmo que a API
+              // aceita. Estavam diferentes, e o botão ficava desabilitado sem
+              // dizer por quê para uma senha que a API teria aceitado.
+              disabled={nome.trim().length < 2 || !email.includes("@") || senha.length < 6}
             >
               Criar acesso
             </Botao>
@@ -291,7 +308,7 @@ function ModalNovoAcesso({
             rotulo="Senha"
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
-            dica="Mínimo de 8 caracteres. Anote: ela não aparece de novo."
+            dica="Vem preenchida com a senha padrão. Troque se este acesso precisar de uma própria."
             required
           />
           <Selecao

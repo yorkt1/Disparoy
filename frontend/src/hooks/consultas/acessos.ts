@@ -80,4 +80,19 @@ export function useAjustarUsuario() {
   });
 }
 
+/**
+ * Apaga o acesso de vez. Só a conta de administração; a API recusa o resto.
+ *
+ * Invalida `empresas` junto porque a tela de Empresas mostra quantos acessos
+ * cada uma tem — sem isso a contagem fica um a mais até a próxima recarga, e
+ * quem acabou de excluir acha que a exclusão não funcionou.
+ */
+export function useExcluirUsuario() {
+  const invalidar = useInvalidar();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<void>(`/usuarios/${id}`),
+    onSuccess: () => invalidar("usuarios", "empresas"),
+  });
+}
+
 // --------------------------------------------------------------------------

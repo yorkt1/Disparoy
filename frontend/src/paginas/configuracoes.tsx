@@ -71,7 +71,13 @@ export function PaginaConfiguracoes() {
       */}
       {ehContaGlobal && <GestaoEmpresas />}
 
-      <ListaUsuarios usuarios={usuarios.data ?? []} sessaoId={sessao.data?.usuario.id ?? ""} />
+      <ListaUsuarios
+        usuarios={usuarios.data ?? []}
+        sessaoId={sessao.data?.usuario.id ?? ""}
+        // Excluir é só da conta global — a API recusa para o resto. O botão
+        // some em vez de aparecer e dar erro.
+        podeExcluir={ehContaGlobal}
+      />
     </div>
   );
 }

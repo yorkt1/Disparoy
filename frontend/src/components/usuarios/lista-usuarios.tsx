@@ -1,5 +1,5 @@
 import * as React from "react";
-import { KeyRound, UserCheck, UserX, Users } from "lucide-react";
+import { KeyRound, Trash2, UserCheck, UserX, Users } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { Campo, MensagemErro, Selecao } from "@/components/ui/campos";
 import { Modal } from "@/components/ui/modal";
@@ -9,7 +9,7 @@ import { useToast } from "@/components/ui/toast";
 import { ROTULO_PAPEL, type Papel, type Usuario } from "@disparoy/dominio";
 import { formatarData } from "@/lib/formato";
 import { mensagemDe } from "@/lib/api";
-import { useAjustarUsuario } from "@/hooks/consultas";
+import { useAjustarUsuario, useExcluirUsuario } from "@/hooks/consultas";
 
 /**
  * Senha inicial sugerida.
@@ -41,9 +41,19 @@ function gerarSenha(tamanho = 14): string {
  * uma empresa. Dois caminhos para a mesma coisa é como um deles fica errado
  * sem ninguém notar.
  */
-export function ListaUsuarios({ usuarios, sessaoId }: { usuarios: Usuario[]; sessaoId: string }) {
+export function ListaUsuarios({
+  usuarios,
+  sessaoId,
+  podeExcluir = false,
+}: {
+  usuarios: Usuario[];
+  sessaoId: string;
+  /** Só a conta de administração exclui; para o resto o botão nem aparece. */
+  podeExcluir?: boolean;
+}) {
   const [papelFiltro, setPapelFiltro] = React.useState("todos");
   const [redefinindo, setRedefinindo] = React.useState<Usuario | null>(null);
+  const [excluindo, setExcluindo] = React.useState<Usuario | null>(null);
   const { mostrar } = useToast();
 
   const ajuste = useAjustarUsuario();
@@ -155,6 +165,21 @@ export function ListaUsuarios({ usuarios, sessaoId }: { usuarios: Usuario[]; ses
               Reativar
             </Botao>
           )}
+          {/* Excluir fica por último e sem rótulo: é a única ação sem
+              desfazer, e não deve competir com "Desativar" pelo olhar de
+              quem só quer suspender alguém por uns dias. */}
+          {podeExcluir && u.id !== sessaoId ? (
+            <Botao
+              tamanho="icone"
+              variante="fantasma"
+              disabled={emAcao === u.id}
+              onClick={() => setExcluindo(u)}
+              aria-label={`Excluir o acesso de ${u.nome}`}
+              className="hover:bg-critico/15 hover:text-critico"
+            >
+              <Trash2 aria-hidden className="size-3.5" />
+            </Botao>
+          ) : null}
         </div>
       ),
     },
@@ -205,6 +230,7 @@ export function ListaUsuarios({ usuarios, sessaoId }: { usuarios: Usuario[]; ses
       </div>
 
       <ModalRedefinirSenha usuario={redefinindo} aoFechar={() => setRedefinindo(null)} />
+      <ModalExcluirAcesso usuario={excluindo} aoFechar={() => setExcluindo(null)} />
     </>
   );
 }
@@ -304,6 +330,84 @@ function ModalRedefinirSenha({
     >
       <div className="flex flex-col gap-4">
         <CampoSenha valor={senha} aoMudar={setSenha} rotulo="Nova senha" />
+        <MensagemErro>{erro}</MensagemErro>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * Confirmação de exclusão.
+ *
+ * Existe porque desativar e excluir ficam lado a lado na mesma linha, e um é
+ * reversível e o outro não. O modal diz o nome e o e-mail de quem vai sumir —
+ * um "tem certeza?" genérico não protege de nada quando o erro possível é
+ * acertar o botão na linha errada.
+ */
+function ModalExcluirAcesso({
+  usuario,
+  aoFechar,
+}: {
+  usuario: Usuario | null;
+  aoFechar: () => void;
+}) {
+  const [erro, setErro] = React.useState<string | null>(null);
+  const { mostrar } = useToast();
+  const exclusao = useExcluirUsuario();
+
+  function fechar() {
+    aoFechar();
+    setErro(null);
+  }
+
+  async function excluir() {
+    if (!usuario) return;
+    setErro(null);
+    try {
+      await exclusao.mutateAsync(usuario.id);
+      mostrar({
+        tipo: "info",
+        titulo: "Acesso excluído",
+        descricao: `${usuario.nome} não entra mais no painel.`,
+      });
+      fechar();
+    } catch (e) {
+      // A API recusa excluir o último admin de uma empresa e o próprio acesso;
+      // a mensagem dela explica qual dos dois foi.
+      setErro(mensagemDe(e, "Não foi possível excluir o acesso."));
+    }
+  }
+
+  return (
+    <Modal
+      aberto={usuario !== null}
+      aoFechar={fechar}
+      // Sem `aoConfirmar`: Enter não apaga ninguém. Quem chega aqui vindo de
+      // outro modal ainda tem o dedo na tecla, e esta ação não tem desfazer.
+      titulo="Excluir este acesso?"
+      descricao="A linha some do sistema. Não dá para desfazer — para suspender por um tempo, use Desativar."
+      largura="sm"
+      rodape={
+        <>
+          <Botao variante="fantasma" onClick={fechar}>
+            Cancelar
+          </Botao>
+          <Botao variante="perigo" onClick={excluir} carregando={exclusao.isPending}>
+            <Trash2 aria-hidden className="size-4" />
+            Excluir mesmo assim
+          </Botao>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <div className="rounded-xl border border-borda bg-superficie-2 p-4">
+          <p className="text-sm font-medium text-tinta">{usuario?.nome}</p>
+          <p className="mt-0.5 font-mono text-xs text-tinta-3">{usuario?.email}</p>
+        </div>
+        <p className="text-xs text-tinta-3">
+          O histórico do que essa pessoa fez continua na trilha de auditoria. O que some junto
+          são os vínculos dela com canais e os avisos pessoais dela.
+        </p>
         <MensagemErro>{erro}</MensagemErro>
       </div>
     </Modal>

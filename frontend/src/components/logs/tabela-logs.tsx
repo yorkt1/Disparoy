@@ -53,6 +53,7 @@ const ACOES: Record<AcaoLog, { texto: string; tom: TomBadge }> = {
   "usuario.senha_alterada": { texto: "Senha alterada pelo próprio", tom: "neutro" },
   "usuario.desativado": { texto: "Acesso desativado", tom: "critico" },
   "usuario.reativado": { texto: "Acesso reativado", tom: "bom" },
+  "usuario.excluido": { texto: "Acesso excluído", tom: "critico" },
 };
 
 const ENTIDADES: Record<TipoEntidade, string> = {

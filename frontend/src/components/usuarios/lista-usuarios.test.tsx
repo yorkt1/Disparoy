@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Usuario } from "@disparoy/dominio";
 
@@ -22,12 +22,13 @@ import type { Usuario } from "@disparoy/dominio";
  */
 
 const { hooks, mostrar } = vi.hoisted(() => ({
-  hooks: { ajustar: vi.fn() },
+  hooks: { ajustar: vi.fn(), excluir: vi.fn() },
   mostrar: vi.fn(),
 }));
 
 vi.mock("@/hooks/consultas", () => ({
   useAjustarUsuario: () => hooks.ajustar(),
+  useExcluirUsuario: () => hooks.excluir(),
 }));
 
 vi.mock("@/components/ui/toast", () => ({ useToast: () => ({ mostrar }) }));
@@ -54,13 +55,20 @@ function ajusteOk() {
   return mutateAsync;
 }
 
-function montar(usuarios: Usuario[]) {
-  render(<ListaUsuarios usuarios={usuarios} sessaoId={EU} />);
+function exclusaoOk() {
+  const mutateAsync = vi.fn().mockResolvedValue(undefined);
+  hooks.excluir.mockReturnValue({ mutateAsync, isPending: false });
+  return mutateAsync;
+}
+
+function montar(usuarios: Usuario[], podeExcluir = false) {
+  render(<ListaUsuarios usuarios={usuarios} sessaoId={EU} podeExcluir={podeExcluir} />);
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
   ajusteOk();
+  exclusaoOk();
 });
 
 describe("ListaUsuarios — ninguém mexe no próprio acesso", () => {
@@ -159,5 +167,83 @@ describe("ListaUsuarios — estado e senha", () => {
     const campo = screen.getByLabelText(/Nova senha/) as HTMLInputElement;
     expect(campo.value.length).toBeGreaterThanOrEqual(14);
     expect(campo.value).not.toMatch(/[O0lI1]/);
+  });
+});
+
+/**
+ * Exclusão — a única ação desta tela que não tem desfazer.
+ *
+ * Desativar e excluir ficam lado a lado na mesma linha, e a diferença entre
+ * eles é permanente. O que estes testes seguram é que excluir não apareça para
+ * quem a API vai recusar, que não apareça na própria linha, e que não aconteça
+ * sem uma confirmação que diga QUEM vai sumir.
+ */
+describe("ListaUsuarios — excluir acesso", () => {
+  const eu = usuario({ id: EU, nome: "Eu Mesmo", papel: "admin" });
+
+  function botaoExcluir(nome: string) {
+    return screen.queryByRole("button", { name: `Excluir o acesso de ${nome}` });
+  }
+
+  it("sem permissão, o botão de excluir não existe", () => {
+    // O acesso de empresa vê a lista, mas a API recusa o DELETE para ele.
+    // Mostrar o botão seria oferecer um clique que só devolve erro.
+    montar([eu, usuario()], false);
+    expect(botaoExcluir("Outro Fulano")).toBeNull();
+  });
+
+  it("com permissão, o botão aparece para os outros", () => {
+    montar([eu, usuario()], true);
+    expect(botaoExcluir("Outro Fulano")).not.toBeNull();
+  });
+
+  it("não dá para excluir a si mesmo, nem com permissão", () => {
+    // Não há auto-cadastro nem recuperação por e-mail: quem apaga o próprio
+    // acesso não tem ninguém para readmiti-lo.
+    montar([eu, usuario()], true);
+    expect(botaoExcluir("Eu Mesmo")).toBeNull();
+  });
+
+  it("o clique abre a confirmação com nome e e-mail, e não exclui sozinho", async () => {
+    const excluir = exclusaoOk();
+    montar([eu, usuario()], true);
+
+    await userEvent.click(botaoExcluir("Outro Fulano")!);
+
+    // Quem confirma precisa ver de quem se trata: o erro possível aqui é
+    // acertar o botão da linha errada, e um "tem certeza?" genérico não pega.
+    // A busca é DENTRO do modal: o e-mail também está na linha da tabela atrás.
+    const dialogo = within(screen.getByRole("dialog"));
+    expect(dialogo.getByText("outro@exemplo.com")).toBeTruthy();
+    expect(dialogo.getByText("Outro Fulano")).toBeTruthy();
+    expect(excluir).not.toHaveBeenCalled();
+  });
+
+  it("confirmar exclui e avisa", async () => {
+    const excluir = exclusaoOk();
+    montar([eu, usuario()], true);
+
+    await userEvent.click(botaoExcluir("Outro Fulano")!);
+    await userEvent.click(screen.getByRole("button", { name: /Excluir mesmo assim/ }));
+
+    expect(excluir).toHaveBeenCalledWith("u-outro");
+    expect(mostrar).toHaveBeenCalledWith(
+      expect.objectContaining({ titulo: "Acesso excluído" }),
+    );
+  });
+
+  it("recusa da API aparece na tela, em vez de sumir", async () => {
+    // A API barra o último administrador de uma empresa. Sem isto, o modal
+    // fecharia como se tivesse dado certo e o acesso continuaria lá.
+    const mutateAsync = vi
+      .fn()
+      .mockRejectedValue(new Error("Este é o último administrador ativo."));
+    hooks.excluir.mockReturnValue({ mutateAsync, isPending: false });
+
+    montar([eu, usuario()], true);
+    await userEvent.click(botaoExcluir("Outro Fulano")!);
+    await userEvent.click(screen.getByRole("button", { name: /Excluir mesmo assim/ }));
+
+    expect(screen.getByText(/último administrador ativo/)).toBeTruthy();
   });
 });
