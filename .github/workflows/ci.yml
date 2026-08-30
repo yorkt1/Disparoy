@@ -46,6 +46,20 @@ jobs:
       - name: Testes
         run: npm test
 
+      # `shared/` é copiado byte a byte entre este repositório e o do backend, e
+      # o processo para manter isso era "lembre de copiar e rodar diff -rq".
+      # Divergência aqui produz o pior tipo de bug: normalizar um telefone passa
+      # a dar resultado diferente na API e no painel, os dois compilam, os dois
+      # passam nos testes, e a diferença só aparece em produção.
+      #
+      # O CI clona um repositório só e não tem o outro para comparar, então a
+      # conferência é contra o hash versionado nos dois. O passo existia apenas
+      # no backend: mexer em `shared/` a partir daqui não acusava nada, que é
+      # metade de uma guarda — e a metade que faltava era justamente a deste
+      # lado.
+      - name: shared/ não divergiu do outro repositório
+        run: npm run compartilhado:verificar
+
       - name: Nenhum segredo versionado
         run: |
           if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -v '\.example$'; then

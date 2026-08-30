@@ -26,8 +26,21 @@ frontend/src/
 ```
 
 **`shared/` é duplicado byte a byte no repositório do backend.** Ao mexer nele,
-copie para `../Disparoy-Backend/shared/src/` e confirme com `diff -rq`. Um
-`shared` divergente entre os dois lados produz bug que só aparece em produção.
+copie para `../Disparoy-Backend/shared/src/` e rode **nos dois repositórios**:
+
+```bash
+npm run compartilhado:gravar      # regrava shared/HASH.txt
+```
+
+Os dois `HASH.txt` têm de sair idênticos, e ambos vão versionados. O CI de cada
+lado roda `compartilhado:verificar` e reprova quando `shared/src` não bate com o
+hash — é a única coisa que pega a divergência, porque cada workflow clona um
+repositório só e não tem o outro para comparar.
+
+Esquecer de regravar quebra o CI na hora. É de propósito: um `shared` divergente
+produz bug que só aparece em produção — normalizar um telefone passa a dar
+resultado diferente na API e no painel, os dois compilam e os dois passam nos
+testes.
 
 ## Regras que não se quebram
 
