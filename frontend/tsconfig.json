@@ -23,5 +23,11 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"]
+  // `vitest.setup.ts` entra no include para que o `import
+  // "@testing-library/jest-dom/vitest"` que ele faz registre os matchers de DOM
+  // (`toBeInTheDocument` e companhia) no tipo de `expect`. Fora do include, o
+  // arquivo roda nos testes mas o tsc nunca o vê, e `npm run typecheck` reprova
+  // todo teste de componente enquanto `npm test` passa — divergência que só
+  // aparece no CI.
+  "include": ["src", "vitest.setup.ts"]
 }

@@ -11,6 +11,8 @@ import { Botao } from "./botao";
 export function Modal({
   aberto,
   aoFechar,
+  aoConfirmar,
+  confirmando = false,
   titulo,
   descricao,
   children,
@@ -19,6 +21,21 @@ export function Modal({
 }: {
   aberto: boolean;
   aoFechar: () => void;
+  /**
+   * A ação principal do rodapé, para o Enter chamar.
+   *
+   * Sem isso, Enter não fazia nada em modal nenhum do painel: só as telas de
+   * login e de perfil usam `<form>`, e todo o resto é este modal com botões
+   * soltos. Quem digita nome e aperta Enter esperando salvar ficava olhando
+   * para uma tela que não reagia.
+   *
+   * É um prop explícito, e não um "clica no último botão do rodapé" achado no
+   * DOM: qual botão é o principal é decisão de quem monta o modal, e adivinhar
+   * pela posição quebra em silêncio no dia em que alguém inverte a ordem.
+   */
+  aoConfirmar?: () => void;
+  /** Enquanto a ação corre, o Enter para — senão a segunda tecla envia de novo. */
+  confirmando?: boolean;
   titulo: string;
   descricao?: string;
   children: React.ReactNode;
@@ -34,12 +51,29 @@ export function Modal({
     if (!aberto && dialog.open) dialog.close();
   }, [aberto]);
 
+  function aoTeclar(evento: React.KeyboardEvent<HTMLDialogElement>) {
+    if (evento.key !== "Enter" || !aoConfirmar || confirmando) return;
+    // Enter com modificador é outro gesto (quebra de linha, atalho do SO).
+    if (evento.shiftKey || evento.altKey || evento.metaKey || evento.ctrlKey) return;
+
+    const alvo = evento.target as HTMLElement;
+    // Textarea precisa do Enter para quebrar linha — é o corpo da mensagem que
+    // se está escrevendo. Botão e link já respondem ao Enter sozinhos, e
+    // interceptar faria a tecla disparar duas ações: a do foco e a principal.
+    if (alvo.tagName === "TEXTAREA" || alvo.tagName === "BUTTON" || alvo.tagName === "A") return;
+    if (alvo.isContentEditable) return;
+
+    evento.preventDefault();
+    aoConfirmar();
+  }
+
   const larguras = { sm: "max-w-sm", md: "max-w-lg", lg: "max-w-3xl" };
 
   return (
     <dialog
       ref={ref}
       onClose={aoFechar}
+      onKeyDown={aoTeclar}
       // Sem fechar no clique do backdrop de propósito: estes modais têm
       // formulário, e o clique fora — ou soltar fora uma seleção de texto que
       // começou dentro — descartava o que foi digitado. Fecha pelo Esc, pelo X

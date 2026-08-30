@@ -1,5 +1,5 @@
 import * as React from "react";
-import { KeyRound, Plus, UserCheck, UserX, Users } from "lucide-react";
+import { KeyRound, UserCheck, UserX, Users } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { Campo, MensagemErro, Selecao } from "@/components/ui/campos";
 import { Modal } from "@/components/ui/modal";
@@ -9,7 +9,7 @@ import { useToast } from "@/components/ui/toast";
 import { ROTULO_PAPEL, type Papel, type Usuario } from "@disparoy/dominio";
 import { formatarData } from "@/lib/formato";
 import { ErroApi } from "@/lib/api";
-import { useAjustarUsuario, useCriarUsuario } from "@/hooks/consultas";
+import { useAjustarUsuario } from "@/hooks/consultas";
 
 /** Mensagem de erro legível, preferindo o texto que a API mandou. */
 function mensagemDe(e: unknown, padrao: string): string {
@@ -32,9 +32,23 @@ function gerarSenha(tamanho = 14): string {
   return Array.from(bytes, (b) => ALFABETO[b % ALFABETO.length]).join("");
 }
 
+/**
+ * Esta tela LISTA acessos; ela não cria mais nenhum.
+ *
+ * O botão "Novo acesso" que ficava aqui chamava a API sem `empresaId`, e a
+ * API herdava a empresa de quem criava. Quando quem criava era a conta de
+ * administração — que é global —, não havia empresa para herdar e o acesso
+ * nascia global também: o cliente entrava e via canal, campanha e dashboard de
+ * TODAS as empresas.
+ *
+ * A saída não foi acrescentar um seletor de empresa aqui, foi apagar o segundo
+ * caminho. Criar acesso mora em Empresas, onde a empresa é escolhida antes do
+ * nome — lá o campo não tem como ser esquecido, porque o modal nasce preso a
+ * uma empresa. Dois caminhos para a mesma coisa é como um deles fica errado
+ * sem ninguém notar.
+ */
 export function ListaUsuarios({ usuarios, sessaoId }: { usuarios: Usuario[]; sessaoId: string }) {
   const [papelFiltro, setPapelFiltro] = React.useState("todos");
-  const [criando, setCriando] = React.useState(false);
   const [redefinindo, setRedefinindo] = React.useState<Usuario | null>(null);
   const { mostrar } = useToast();
 
@@ -158,14 +172,10 @@ export function ListaUsuarios({ usuarios, sessaoId }: { usuarios: Usuario[]; ses
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-tinta">Usuários e acessos</h1>
           <p className="mt-1 text-sm text-tinta-3">
-            Sistema interno: não há cadastro aberto. Todo acesso nasce aqui, com a senha definida
-            por você.
+            Sistema interno: não há cadastro aberto. Todo acesso é criado em Empresas, junto da
+            empresa a que ele pertence.
           </p>
         </div>
-        <Botao variante="primario" onClick={() => setCriando(true)}>
-          <Plus aria-hidden className="size-4" />
-          Novo acesso
-        </Botao>
       </div>
 
       <div className="overflow-hidden rounded-card border border-borda bg-superficie">
@@ -173,13 +183,7 @@ export function ListaUsuarios({ usuarios, sessaoId }: { usuarios: Usuario[]; ses
           <EstadoVazio
             icone={<Users className="size-7" />}
             titulo="Nenhum acesso cadastrado"
-            descricao="Crie o primeiro login para a equipe operar as campanhas."
-            acao={
-              <Botao variante="primario" onClick={() => setCriando(true)}>
-                <Plus aria-hidden className="size-4" />
-                Novo acesso
-              </Botao>
-            }
+            descricao="Crie a empresa em Empresas e, logo depois, o login dela."
           />
         ) : (
           <Tabela
@@ -206,7 +210,6 @@ export function ListaUsuarios({ usuarios, sessaoId }: { usuarios: Usuario[]; ses
         )}
       </div>
 
-      <ModalNovoAcesso aberto={criando} aoFechar={() => setCriando(false)} />
       <ModalRedefinirSenha usuario={redefinindo} aoFechar={() => setRedefinindo(null)} />
     </>
   );
@@ -244,87 +247,6 @@ function CampoSenha({
         Gerar
       </Botao>
     </div>
-  );
-}
-
-function ModalNovoAcesso({ aberto, aoFechar }: { aberto: boolean; aoFechar: () => void }) {
-  const [nome, setNome] = React.useState("");
-  const [email, setEmail] = React.useState("");
-  const [senha, setSenha] = React.useState("");
-  const [papel, setPapel] = React.useState<Papel>("operator");
-  const [erro, setErro] = React.useState<string | null>(null);
-  const { mostrar } = useToast();
-  const criacao = useCriarUsuario();
-
-  function fechar() {
-    aoFechar();
-    setNome("");
-    setEmail("");
-    setSenha("");
-    setPapel("operator");
-    setErro(null);
-  }
-
-  async function salvar() {
-    setErro(null);
-    try {
-      await criacao.mutateAsync({ nome, email, senha, papel });
-      mostrar({
-        tipo: "sucesso",
-        titulo: "Acesso criado",
-        descricao: `${nome} já pode entrar com ${email}.`,
-      });
-      fechar();
-    } catch (e) {
-      setErro(mensagemDe(e, "Não foi possível criar o acesso."));
-    }
-  }
-
-  return (
-    <Modal
-      aberto={aberto}
-      aoFechar={fechar}
-      titulo="Novo acesso"
-      descricao="A conta já nasce ativa: entregue o e-mail e a senha para a pessoa entrar."
-      rodape={
-        <>
-          <Botao variante="fantasma" onClick={fechar}>
-            Cancelar
-          </Botao>
-          <Botao variante="primario" onClick={salvar} carregando={criacao.isPending}>
-            Criar acesso
-          </Botao>
-        </>
-      }
-    >
-      <div className="flex flex-col gap-4">
-        <Campo
-          rotulo="Nome"
-          value={nome}
-          onChange={(e) => setNome(e.target.value)}
-          placeholder="Como a pessoa aparece nos logs"
-          required
-        />
-        <Campo
-          rotulo="E-mail"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          autoComplete="off"
-          required
-        />
-        <CampoSenha valor={senha} aoMudar={setSenha} />
-        <Selecao
-          rotulo="Papel"
-          value={papel}
-          onChange={(e) => setPapel(e.target.value as Papel)}
-        >
-          <option value="operator">Operador — cria e acompanha campanhas</option>
-          <option value="admin">Administrador — também gerencia acessos e vê os logs</option>
-        </Selecao>
-        <MensagemErro>{erro}</MensagemErro>
-      </div>
-    </Modal>
   );
 }
 
@@ -366,6 +288,8 @@ function ModalRedefinirSenha({
     <Modal
       aberto={usuario !== null}
       aoFechar={fechar}
+      aoConfirmar={salvar}
+      confirmando={ajuste.isPending}
       titulo="Redefinir senha"
       descricao={
         usuario

@@ -471,7 +471,7 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-tinta">Canais</h1>
           {/* A verificação acontece em silêncio.
-              Anunciar "conferindo⬦" transferia para o operador a tarefa de
+              Anunciar "conferindo…" transferia para o operador a tarefa de
               esperar e reparar no processo. Ele quer o estado certo, não o
               relatório de como o sistema chegou nele. */}
           <p className="mt-1 text-sm text-tinta-3">
@@ -503,7 +503,7 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
             itens={filtrados}
             chaveDe={(c) => c.id}
             porPagina={10}
-            buscaPlaceholder="Buscar por nome, número ou empresa⬦"
+            buscaPlaceholder="Buscar por nome, número ou empresa…"
             textoBusca={(c) => `${c.nome} ${c.numero ?? ""}`}
             vazio="Nenhum canal com esse filtro."
             filtros={
@@ -602,7 +602,7 @@ function ModalExcluirCanal({
       }
     >
       <div className="flex flex-col gap-3">
-        {vinculos.isLoading && <p className="text-sm text-tinta-3">Conferindo dependências⬦</p>}
+        {vinculos.isLoading && <p className="text-sm text-tinta-3">Conferindo dependências…</p>}
 
         {!vinculos.isLoading && campanhas.length === 0 && (
           <p className="text-sm text-tinta-2">
@@ -740,6 +740,11 @@ function ModalReconectarCanal({
     <Modal
       aberto={canal !== null}
       aoFechar={fechar}
+      // Fora do estado de formulário, Enter não confirma nada: com o QR na
+      // tela não há ação, e em `confirmarDerrubar` a ação é derrubar uma
+      // sessão que está funcionando — isso se clica, não se tecla sem querer.
+      aoConfirmar={sessao || conectado || confirmarDerrubar ? undefined : () => void solicitar()}
+      confirmando={reconexao.isPending}
       titulo={
         conectado
           ? "Pronto"
@@ -972,6 +977,11 @@ function ModalConectarCanal({
     <Modal
       aberto={aberto}
       aoFechar={fechar}
+      // Enter só vale enquanto o modal é formulário. Depois que o QR aparece
+      // não há nada para confirmar, e a tecla dispararia um pareamento novo
+      // por cima do que está na tela.
+      aoConfirmar={pareando || conectado ? undefined : solicitar}
+      confirmando={criacao.isPending}
       titulo={
         conectado
           ? "Pronto"
@@ -1025,9 +1035,14 @@ function ModalConectarCanal({
             rotulo="Nome do canal"
             value={nome}
             onChange={(e) => setNome(e.target.value)}
-            placeholder="Comercial, Suporte, Vendas⬦"
+            placeholder="Comercial, Suporte, Vendas…"
             dica="Só isto. O número aparece sozinho quando o aparelho parear."
             required
+            /* O modal acabou de abrir por ação explícita do operador e este é
+               seu único campo. Sem o foco, o teclado continua na página atrás
+               e o primeiro Tab volta para a lista de canais. A regra existe
+               para autoFocus em carga de página, que não é o caso. */
+            // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
           />
 

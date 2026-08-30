@@ -21,7 +21,12 @@ export default defineConfig({
      * teste que renderiza componente de verdade.
      */
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    /*
+     * `.tsx` incluído para os testes de componente. Eles pedem o jsdom no
+     * próprio arquivo (`@vitest-environment jsdom`) em vez de mudar o padrão
+     * daqui: os testes de lógica pura seguem em `node`, que é mais rápido.
+     */
+    include: ["src/**/*.test.{ts,tsx}"],
     setupFiles: ["./vitest.setup.ts"],
 
     // Desfaz `vi.stubEnv` antes de CADA teste. `VITE_API_URL` é lida uma vez,

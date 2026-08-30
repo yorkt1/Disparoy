@@ -106,7 +106,12 @@ export function GraficoStatus({
               </div>
 
               {/* Alvo de hover maior que a marca, conforme guia de interação. */}
+              {/* Focável de propósito: o `aria-label` abaixo carrega o valor
+                  da faixa, e sem entrar na ordem de tabulação ele nunca é
+                  anunciado — o número do gráfico existiria só para quem
+                  enxerga. `role="img"` com rótulo é o padrão para gráfico. */}
               <div
+                // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
                 tabIndex={0}
                 role="img"
                 aria-label={`${faixa.rotulo}: ${formatarNumero(faixa.valor)} mensagens${

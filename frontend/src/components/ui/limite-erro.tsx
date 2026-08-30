@@ -1,5 +1,5 @@
 import * as React from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Check, Copy } from "lucide-react";
 import { Botao } from "./botao";
 
 /**
@@ -27,12 +27,22 @@ interface Props {
 
 interface Estado {
   erro: Error | null;
+  /**
+   * Qual componente quebrou.
+   *
+   * A mensagem sozinha ("Cannot read properties of undefined") não diz nada
+   * acionável: ela aponta a operação, nunca o lugar. Um relato de campanha que
+   * não abria chegou como "parece ser de um length" e não deu para achar a
+   * linha, porque o que faltava era justamente esta pilha.
+   */
+  pilha: string | null;
+  copiado: boolean;
 }
 
 export class LimiteErro extends React.Component<Props, Estado> {
-  state: Estado = { erro: null };
+  state: Estado = { erro: null, pilha: null, copiado: false };
 
-  static getDerivedStateFromError(erro: Error): Estado {
+  static getDerivedStateFromError(erro: Error): Partial<Estado> {
     return { erro };
   }
 
@@ -40,15 +50,42 @@ export class LimiteErro extends React.Component<Props, Estado> {
     // Sem serviço de erro configurado, o console é o que existe. Fica com a
     // pilha de componentes junto, que é a parte que a stack do erro não tem.
     console.error("Erro não tratado no painel:", erro, info.componentStack);
+    this.setState({ pilha: info.componentStack ?? null });
   }
 
   componentDidUpdate(anterior: Props): void {
     // Navegar para outra tela precisa limpar o erro; senão o painel fica preso
     // na tela de falha mesmo depois de o usuário sair da rota que quebrou.
     if (this.state.erro && anterior.chave !== this.props.chave) {
-      this.setState({ erro: null });
+      this.setState({ erro: null, pilha: null, copiado: false });
     }
   }
+
+  /** Tudo que serve para consertar, em um texto só. */
+  private get relatorio(): string {
+    const { erro, pilha } = this.state;
+    return [
+      `Erro: ${erro?.message ?? "desconhecido"}`,
+      `Tela: ${window.location.href}`,
+      `Quando: ${new Date().toISOString()}`,
+      "",
+      erro?.stack ?? "",
+      pilha ? `\nComponentes:${pilha}` : "",
+    ].join("\n");
+  }
+
+  private copiar = (): void => {
+    /*
+     * `writeText` falha em http sem TLS e quando o navegador nega a permissão,
+     * e falha como promessa rejeitada — sem catch, quebraria dentro da própria
+     * tela de erro. Aí o botão fica sem confirmar, que é o pior que acontece:
+     * o texto continua visível para selecionar à mão.
+     */
+    void navigator.clipboard
+      ?.writeText(this.relatorio)
+      .then(() => this.setState({ copiado: true }))
+      .catch(() => undefined);
+  };
 
   private tentarNovamente = (): void => {
     this.setState({ erro: null });
@@ -59,7 +96,7 @@ export class LimiteErro extends React.Component<Props, Estado> {
   };
 
   render(): React.ReactNode {
-    const { erro } = this.state;
+    const { erro, copiado } = this.state;
     if (!erro) return this.props.children;
 
     return (
@@ -79,9 +116,30 @@ export class LimiteErro extends React.Component<Props, Estado> {
             <summary className="cursor-pointer text-xs text-tinta-3 hover:text-tinta-2">
               Detalhes técnicos
             </summary>
-            <pre className="mt-2 max-h-40 overflow-auto rounded-lg bg-superficie-2 p-3 text-[11px] leading-relaxed text-tinta-2">
-              {erro.message}
+            <pre className="mt-2 max-h-40 overflow-auto rounded-lg bg-superficie-2 p-3 text-[11px] leading-relaxed whitespace-pre-wrap text-tinta-2">
+              {this.relatorio}
             </pre>
+            {/* Sem este botão, relatar o erro exige abrir o console do
+                navegador — e o que chega em vez disso é a descrição de
+                memória, que não localiza nada. */}
+            <Botao
+              variante="secundario"
+              tamanho="sm"
+              onClick={this.copiar}
+              className="mt-2 w-full"
+            >
+              {copiado ? (
+                <>
+                  <Check aria-hidden className="size-3.5" />
+                  Copiado — cole no chat
+                </>
+              ) : (
+                <>
+                  <Copy aria-hidden className="size-3.5" />
+                  Copiar detalhes
+                </>
+              )}
+            </Botao>
           </details>
 
           <div className="mt-5 flex justify-center gap-2">

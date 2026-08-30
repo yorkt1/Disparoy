@@ -223,6 +223,12 @@ function LinhaContato({ contato }: { contato: ContatoDaCampanha }) {
           <ul className="mt-1.5 flex flex-col gap-1">
             {respostas.map((r, i) => (
               <li
+                /* Índice na key porque `RespostaRecebida` não tem id e
+                   `recebidaEm` colide quando duas chegam no mesmo segundo. É
+                   seguro aqui: a lista vem pronta do servidor, tem no máximo
+                   MAX_RESPOSTAS_NA_LISTA itens, não reordena e não guarda
+                   estado — nada que o React possa reaproveitar no nó errado. */
+                // eslint-disable-next-line react/no-array-index-key
                 key={`${contato.id}-${i}`}
                 className="border-l-2 border-marca/40 pl-2 text-xs text-tinta-2"
               >

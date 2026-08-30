@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// `ErroApi` como tipo. O import de valor não serve: cada teste recarrega o
+// módulo por `carregarApi()` para reavaliar `VITE_API_URL`, e um import
+// estático fixaria a primeira avaliação. `import type` some na compilação.
+import type { ErroApi as ErroDaApi } from "./api";
+
 const CHAVE_SESSAO = "disparoy.sessao";
 
 interface Chamada {
@@ -136,7 +141,7 @@ describe("chamarApi", () => {
     const erro = await api.get("/campanhas").catch((e: unknown) => e);
 
     expect(erro).toBeInstanceOf(ErroApi);
-    expect((erro as InstanceType<typeof ErroApi>).status).toBe(502);
+    expect((erro as ErroDaApi).status).toBe(502);
     expect((erro as Error).message).toContain("502");
   });
 
@@ -144,11 +149,11 @@ describe("chamarApi", () => {
     espionarFetch(() =>
       respostaJson({ erro: "Dados inválidos.", erros: { nome: "Obrigatório." } }, 400),
     );
-    const { api, ErroApi } = await carregarApi();
+    const { api } = await carregarApi();
 
     const erro = (await api
       .post("/campanhas", {})
-      .catch((e: unknown) => e)) as InstanceType<typeof ErroApi>;
+      .catch((e: unknown) => e)) as ErroDaApi;
 
     expect(erro.campos).toEqual({ nome: "Obrigatório." });
     expect(erro.primeiroCampo).toBe("Obrigatório.");
@@ -156,9 +161,9 @@ describe("chamarApi", () => {
 
   it("erro sem corpo ainda carrega o status", async () => {
     espionarFetch(() => new Response(null, { status: 500 }));
-    const { api, ErroApi } = await carregarApi();
+    const { api } = await carregarApi();
 
-    const erro = (await api.get("/x").catch((e: unknown) => e)) as InstanceType<typeof ErroApi>;
+    const erro = (await api.get("/x").catch((e: unknown) => e)) as ErroDaApi;
 
     expect(erro.status).toBe(500);
     expect(erro.message).toBe("Erro 500.");

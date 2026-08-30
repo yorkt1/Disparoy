@@ -193,6 +193,8 @@ function ModalNovoTemplate({ aberto, aoFechar }: { aberto: boolean; aoFechar: ()
     <Modal
       aberto={aberto}
       aoFechar={fechar}
+      aoConfirmar={salvar}
+      confirmando={criacao.isPending}
       titulo="Novo template"
       descricao="Templates passam por aprovação da Meta antes de poderem ser usados."
       rodape={

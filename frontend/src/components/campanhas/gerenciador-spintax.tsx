@@ -199,6 +199,8 @@ export function ModalVariacoes({
     <Modal
       aberto={aberto}
       aoFechar={fechar}
+      aoConfirmar={salvar}
+      confirmando={gravacao.isPending}
       titulo={naLista ? "Variações" : editando ? `Editar {{*${editando.nome}*}}` : "Nova variação"}
       descricao={
         naLista

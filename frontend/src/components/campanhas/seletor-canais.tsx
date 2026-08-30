@@ -43,6 +43,10 @@ export function SeletorCanais({
           const oficial = canal.tipoConexao === "api_oficial";
 
           return (
+            /* O rótulo é `{canal.nome}`, logo abaixo. A regra só enxerga
+               texto literal no JSX e não consegue provar que uma expressão
+               rende texto — aqui todo nome de canal vem da API. */
+            // eslint-disable-next-line jsx-a11y/label-has-associated-control
             <label
               key={canal.id}
               className={cn(

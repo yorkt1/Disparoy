@@ -134,6 +134,8 @@ function ModalNovaEmpresa({ aberto, aoFechar }: { aberto: boolean; aoFechar: () 
     <Modal
       aberto={aberto}
       aoFechar={fechar}
+      aoConfirmar={salvar}
+      confirmando={criacao.isPending}
       titulo="Nova empresa"
       descricao="Só o nome. O acesso e os canais vêm depois."
       rodape={
@@ -231,6 +233,8 @@ function ModalNovoAcesso({
     <Modal
       aberto={empresa !== null}
       aoFechar={fechar}
+      aoConfirmar={salvar}
+      confirmando={criacao.isPending}
       titulo={criado ? "Acesso criado" : `Acesso de ${empresa?.nome ?? ""}`}
       descricao={
         criado

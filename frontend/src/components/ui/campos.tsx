@@ -1,6 +1,6 @@
 
 import * as React from "react";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/formato";
 
 /** Campos de formulário — rótulo, contador de caracteres e erro num só lugar. */
@@ -69,11 +69,27 @@ export function Campo({
   id,
   value,
   required,
+  type,
   ...props
 }: PropsCampo) {
   const gerado = React.useId();
   const idCampo = id ?? gerado;
   const tamanho = typeof value === "string" ? value.length : 0;
+
+  /*
+   * O olho aparece sozinho em todo campo de senha.
+   *
+   * Fica aqui, e não em cada tela, porque a decisão é sempre a mesma: senha se
+   * digita às cegas e ninguém confere. No login isso custa uma tentativa; na
+   * troca de senha custa um acesso, porque a pessoa grava um valor que não é o
+   * que ela acha que digitou e só descobre no login seguinte.
+   *
+   * O estado é local ao campo e nasce oculto a cada montagem — revelar uma
+   * senha não é preferência que se guarda entre telas.
+   */
+  const ehSenha = type === "password";
+  const [revelada, setRevelada] = React.useState(false);
+  const tipoEfetivo = ehSenha && revelada ? "text" : type;
 
   return (
     <div>
@@ -89,14 +105,46 @@ export function Campo({
           {maxCaracteres ? <Contador atual={tamanho} maximo={maxCaracteres} /> : null}
         </div>
       ) : null}
-      <input
-        id={idCampo}
-        value={value}
-        required={required}
-        aria-invalid={erro ? true : undefined}
-        className={cn(controle, "h-9.5", erro && "border-critico", className)}
-        {...props}
-      />
+      <div className={ehSenha ? "relative" : undefined}>
+        <input
+          id={idCampo}
+          type={tipoEfetivo}
+          value={value}
+          required={required}
+          aria-invalid={erro ? true : undefined}
+          className={cn(
+            controle,
+            "h-9.5",
+            erro && "border-critico",
+            // Espaço para o botão não cobrir o fim do que foi digitado.
+            ehSenha && "pr-10",
+            className,
+          )}
+          {...props}
+        />
+        {ehSenha ? (
+          <button
+            type="button"
+            // `tabIndex={-1}` de propósito: quem chega ao campo de senha pelo
+            // Tab quer o botão de entrar em seguida, não um passo extra no
+            // meio. Continua clicável, e o leitor de tela alcança pelo rótulo.
+            tabIndex={-1}
+            onClick={() => setRevelada((v) => !v)}
+            aria-label={revelada ? "Ocultar senha" : "Mostrar senha"}
+            aria-pressed={revelada}
+            className={
+              "absolute inset-y-0 right-0 flex w-10 items-center justify-center text-tinta-3 " +
+              "transition-colors hover:text-tinta focus-visible:text-tinta focus-visible:outline-none"
+            }
+          >
+            {revelada ? (
+              <EyeOff aria-hidden className="size-4" />
+            ) : (
+              <Eye aria-hidden className="size-4" />
+            )}
+          </button>
+        ) : null}
+      </div>
       {dica && !erro ? <p className="mt-1.5 text-xs text-tinta-3">{dica}</p> : null}
       <MensagemErro>{erro}</MensagemErro>
     </div>
