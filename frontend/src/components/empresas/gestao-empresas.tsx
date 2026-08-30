@@ -6,7 +6,7 @@ import { Modal } from "@/components/ui/modal";
 import { Badge, Card, CardCabecalho, EstadoVazio, Separador } from "@/components/ui/primitivos";
 import { Carregando, ErroCarregamento } from "@/components/ui/estados";
 import { useToast } from "@/components/ui/toast";
-import { ErroApi } from "@/lib/api";
+import { mensagemDe } from "@/lib/api";
 import { formatarData } from "@/lib/formato";
 import {
   useCriarEmpresa,
@@ -14,11 +14,6 @@ import {
   useEmpresas,
   type EmpresaResumo,
 } from "@/hooks/consultas";
-
-function mensagemDe(e: unknown, padrao: string): string {
-  if (e instanceof ErroApi) return e.primeiroCampo ?? e.message;
-  return e instanceof Error ? e.message : padrao;
-}
 
 /**
  * Empresas clientes e os acessos de cada uma.

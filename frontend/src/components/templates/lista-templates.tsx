@@ -10,13 +10,8 @@ import { useToast } from "@/components/ui/toast";
 import { ROTULO_CATEGORIA, SeloTemplate } from "@/components/campanhas/selo-status";
 import type { CategoriaTemplate, Template } from "@disparoy/dominio";
 import { formatarData, slugify } from "@/lib/formato";
-import { ErroApi } from "@/lib/api";
+import { mensagemDe } from "@/lib/api";
 import { useCriarTemplate, useSincronizarTemplates } from "@/hooks/consultas";
-
-function mensagemDe(e: unknown, padrao: string): string {
-  if (e instanceof ErroApi) return e.primeiroCampo ?? e.message;
-  return e instanceof Error ? e.message : padrao;
-}
 
 export function ListaTemplates({ templates }: { templates: Template[] }) {
   const [categoria, setCategoria] = React.useState("todas");

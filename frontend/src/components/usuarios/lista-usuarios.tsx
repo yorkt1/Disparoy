@@ -8,14 +8,8 @@ import { Tabela, FiltroSelecao, type Coluna } from "@/components/ui/tabela";
 import { useToast } from "@/components/ui/toast";
 import { ROTULO_PAPEL, type Papel, type Usuario } from "@disparoy/dominio";
 import { formatarData } from "@/lib/formato";
-import { ErroApi } from "@/lib/api";
+import { mensagemDe } from "@/lib/api";
 import { useAjustarUsuario } from "@/hooks/consultas";
-
-/** Mensagem de erro legível, preferindo o texto que a API mandou. */
-function mensagemDe(e: unknown, padrao: string): string {
-  if (e instanceof ErroApi) return e.primeiroCampo ?? e.message;
-  return e instanceof Error ? e.message : padrao;
-}
 
 /**
  * Senha inicial sugerida.

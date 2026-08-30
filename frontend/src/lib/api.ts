@@ -64,6 +64,20 @@ export class ErroApi extends Error {
   }
 }
 
+/**
+ * Mensagem de erro legível, preferindo o texto que a API mandou.
+ *
+ * Mora aqui, junto de `ErroApi`, porque a ordem de preferência é conhecimento
+ * sobre o formato de erro da API: erro de campo primeiro (é o que diz O QUE
+ * corrigir), depois a mensagem geral, e o padrão só quando nem Error é. Estava
+ * copiada em quatro telas, e cópia de regra é como as quatro deixam de
+ * concordar sem ninguém decidir isso.
+ */
+export function mensagemDe(e: unknown, padrao: string): string {
+  if (e instanceof ErroApi) return e.primeiroCampo ?? e.message;
+  return e instanceof Error ? e.message : padrao;
+}
+
 interface OpcoesRequisicao extends Omit<RequestInit, "body"> {
   corpo?: unknown;
   /** Envia FormData em vez de JSON (upload de planilha). */
