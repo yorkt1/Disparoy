@@ -40,6 +40,28 @@ function armazenamentoEmMemoria(): Storage {
  */
 const temNavegador = typeof document !== "undefined";
 
+/**
+ * `<dialog>` no jsdom: existe o elemento, não existem os métodos.
+ *
+ * `Modal` usa o dialog nativo — é o que dá foco preso, Esc e camada de topo de
+ * graça, sem biblioteca. O jsdom implementa o elemento mas não `showModal()`
+ * nem `close()`, então qualquer teste que abra um modal morre em
+ * "showModal is not a function" no efeito, longe da causa.
+ *
+ * O polyfill reflete só o que os testes observam: `open`. Não encena foco nem
+ * camada de topo — isso é comportamento de navegador de verdade, e um teste
+ * que dependesse dele estaria testando o jsdom, não o painel.
+ */
+if (temNavegador && !HTMLDialogElement.prototype.showModal) {
+  HTMLDialogElement.prototype.showModal = function abrir(this: HTMLDialogElement) {
+    this.open = true;
+  };
+  HTMLDialogElement.prototype.close = function fechar(this: HTMLDialogElement) {
+    this.open = false;
+    this.dispatchEvent(new Event("close"));
+  };
+}
+
 beforeEach(() => {
   if (temNavegador) {
     localStorage.clear();
