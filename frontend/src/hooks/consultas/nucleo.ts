@@ -65,6 +65,12 @@ export interface Sessao {
     papel: Papel;
     /** `null` = conta de administração do sistema, que atravessa as empresas. */
     empresaId: string | null;
+    /**
+     * Preenchido quando a conta de administração entrou nesta conta para dar
+     * suporte. É o que a tarja do topo lê — sem ela, as duas situações são
+     * visualmente idênticas e o suporte mexe na conta errada.
+     */
+    personificadoPor: { id: string; nome: string } | null;
   };
   integracao: EstadoIntegracao;
   disparo: EstadoDisparo;

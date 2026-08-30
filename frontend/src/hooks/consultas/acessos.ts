@@ -1,6 +1,7 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Papel, Usuario } from "@disparoy/dominio";
 import { api } from "@/lib/api";
+import { entrarComoOutro } from "@/lib/sessao";
 import { chaves, useInvalidar } from "./nucleo";
 
 export function useUsuarios(habilitado = true) {
@@ -77,6 +78,32 @@ export function useAjustarUsuario() {
     mutationFn: ({ id, ...corpo }: { id: string; papel?: Papel; ativo?: boolean; senha?: string }) =>
       api.patch<{ usuario: Usuario }>(`/usuarios/${id}`, corpo),
     onSuccess: () => invalidar("usuarios"),
+  });
+}
+
+/**
+ * Entra no painel COMO outra pessoa, sem a senha dela.
+ *
+ * Troca a sessão do navegador e limpa o cache inteiro: as consultas em memória
+ * são as do admin, e mantê-las mostraria os canais e as campanhas dele dentro
+ * da conta do cliente por alguns segundos — exatamente o vazamento visual que
+ * esta ferramenta existe para investigar.
+ *
+ * Não invalida seletivamente por isso: aqui não é "um dado mudou", é "outra
+ * pessoa está usando o painel".
+ */
+export function usePersonificar() {
+  const cliente = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.post<{ token: string; expiraEm: string; usuario: Usuario }>(
+        `/sessao/personificar/${id}`,
+        {},
+      ),
+    onSuccess: (r) => {
+      entrarComoOutro({ token: r.token, expiraEm: r.expiraEm });
+      cliente.clear();
+    },
   });
 }
 

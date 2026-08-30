@@ -54,6 +54,9 @@ const ACOES: Record<AcaoLog, { texto: string; tom: TomBadge }> = {
   "usuario.desativado": { texto: "Acesso desativado", tom: "critico" },
   "usuario.reativado": { texto: "Acesso reativado", tom: "bom" },
   "usuario.excluido": { texto: "Acesso excluído", tom: "critico" },
+  // "sério" e não "crítico": não é estrago, é poder. A linha marca a partir de
+  // quando as ações no nome deste cliente podem ter sido do suporte.
+  "usuario.personificado": { texto: "Suporte entrou na conta", tom: "serio" },
 };
 
 const ENTIDADES: Record<TipoEntidade, string> = {

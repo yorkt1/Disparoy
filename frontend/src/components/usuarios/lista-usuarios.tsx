@@ -1,5 +1,5 @@
 import * as React from "react";
-import { KeyRound, Trash2, UserCheck, UserX, Users } from "lucide-react";
+import { KeyRound, LogIn, Trash2, UserCheck, UserX, Users } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { Campo, MensagemErro, Selecao } from "@/components/ui/campos";
 import { Modal } from "@/components/ui/modal";
@@ -9,7 +9,7 @@ import { useToast } from "@/components/ui/toast";
 import { ROTULO_PAPEL, type Papel, type Usuario } from "@disparoy/dominio";
 import { formatarData } from "@/lib/formato";
 import { mensagemDe } from "@/lib/api";
-import { useAjustarUsuario, useExcluirUsuario } from "@/hooks/consultas";
+import { useAjustarUsuario, useExcluirUsuario, usePersonificar } from "@/hooks/consultas";
 
 /**
  * Senha inicial sugerida.
@@ -48,7 +48,10 @@ export function ListaUsuarios({
 }: {
   usuarios: Usuario[];
   sessaoId: string;
-  /** Só a conta de administração exclui; para o resto o botão nem aparece. */
+  /**
+   * Só a conta de administração exclui e entra em outras contas; para o resto
+   * os dois botões nem aparecem, porque a API os recusaria.
+   */
   podeExcluir?: boolean;
 }) {
   const [papelFiltro, setPapelFiltro] = React.useState("todos");
@@ -57,7 +60,29 @@ export function ListaUsuarios({
   const { mostrar } = useToast();
 
   const ajuste = useAjustarUsuario();
+  const personificacao = usePersonificar();
   const emAcao = ajuste.isPending ? ajuste.variables?.id : null;
+
+  /**
+   * Entra na conta e recarrega a página inteira.
+   *
+   * `window.location` em vez de navegar pelo react-router: a sessão trocou por
+   * baixo de tudo, e recarregar é o jeito mais curto de garantir que nada do
+   * admin — cache, estado de componente, consulta em voo — sobreviva dentro da
+   * conta do cliente.
+   */
+  async function entrarNaConta(usuario: Usuario) {
+    try {
+      await personificacao.mutateAsync(usuario.id);
+      window.location.assign("/dashboard");
+    } catch (e) {
+      mostrar({
+        tipo: "erro",
+        titulo: "Não foi possível entrar nesta conta",
+        descricao: mensagemDe(e, "Tente novamente."),
+      });
+    }
+  }
 
   const filtrados = usuarios.filter((u) => papelFiltro === "todos" || u.papel === papelFiltro);
 
@@ -165,6 +190,20 @@ export function ListaUsuarios({
               Reativar
             </Botao>
           )}
+          {/* Entrar na conta: o caminho de suporte. Fica antes de excluir e
+              depois das ações do dia a dia — é usado com frequência, mas não é
+              o que se procura primeiro nesta tela. */}
+          {podeExcluir && u.id !== sessaoId && u.ativo ? (
+            <Botao
+              tamanho="sm"
+              variante="fantasma"
+              disabled={emAcao === u.id || personificacao.isPending}
+              onClick={() => void entrarNaConta(u)}
+            >
+              <LogIn aria-hidden className="size-3.5" />
+              Entrar
+            </Botao>
+          ) : null}
           {/* Excluir fica por último e sem rótulo: é a única ação sem
               desfazer, e não deve competir com "Desativar" pelo olhar de
               quem só quer suspender alguém por uns dias. */}

@@ -1,8 +1,11 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { Eye, Loader2 } from "lucide-react";
 import { useAuth } from "@/auth/contexto-auth";
 import { useSessao } from "@/hooks/consultas";
 import { LimiteErro } from "@/components/ui/limite-erro";
+import { Botao } from "@/components/ui/botao";
+import { cn } from "@/lib/formato";
+import { voltarParaSessaoOriginal } from "@/lib/sessao";
 import { Topo } from "./topo";
 
 /**
@@ -33,10 +36,20 @@ export function PainelLayout() {
     );
   }
 
+  const via = data.usuario.personificadoPor;
+
   return (
     <div className="min-h-dvh">
+      {via ? <TarjaPersonificacao nome={data.usuario.nome} via={via.nome} /> : null}
       <Topo usuario={data.usuario} />
-      <main className="mx-auto max-w-[1600px] px-4 pt-20 pb-12 sm:px-6">
+      <main
+        className={cn(
+          "mx-auto max-w-[1600px] px-4 pb-12 sm:px-6",
+          // A tarja empurra o topo fixo para baixo; sem isto o conteúdo entra
+          // por baixo dele.
+          via ? "pt-32" : "pt-20",
+        )}
+      >
         {/*
           O boundary fica DENTRO do layout, e não em volta dele: uma tela que
           quebra não pode levar o topo junto, ou o operador perde a navegação e
@@ -57,6 +70,45 @@ function Carregando() {
     <div className="grid min-h-dvh place-items-center">
       <Loader2 aria-hidden className="size-6 animate-spin text-tinta-3" />
       <span className="sr-only">Carregando</span>
+    </div>
+  );
+}
+
+/**
+ * A tarja que diz "você não é você agora".
+ *
+ * Fixa no topo, acima de tudo, e em cor de alerta de propósito: dentro da
+ * conta de um cliente o painel é IDÊNTICO ao normal, e o erro que isso convida
+ * — pausar a campanha errada, excluir o canal errado — é caro e não tem
+ * desfazer. A tarja é a única coisa na tela que distingue as duas situações.
+ *
+ * O botão de voltar recarrega a página em vez de só trocar o estado do React:
+ * a sessão mudou por baixo do react-query, e recarregar é o jeito mais curto
+ * de garantir que nada do cliente sobreviva na memória da aba.
+ */
+function TarjaPersonificacao({ nome, via }: { nome: string; via: string }) {
+  function voltar() {
+    if (!voltarParaSessaoOriginal()) {
+      // A sessão guardada venceu enquanto o suporte estava dentro do cliente.
+      // Dizer isso é melhor que restaurar um token morto e mostrar um 401.
+      window.location.assign("/entrar");
+      return;
+    }
+    window.location.assign("/dashboard");
+  }
+
+  return (
+    <div className="fixed inset-x-0 top-0 z-50 bg-aviso/95 text-superficie backdrop-blur">
+      <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2 sm:px-6">
+        <Eye aria-hidden className="size-4 shrink-0" />
+        <p className="min-w-0 flex-1 text-xs font-medium">
+          Você está dentro da conta de <strong>{nome.replace(` (via ${via})`, "")}</strong>. Tudo
+          que fizer aqui vale para o cliente, e fica registrado como feito por você.
+        </p>
+        <Botao tamanho="sm" variante="secundario" onClick={voltar} className="shrink-0">
+          Voltar para minha conta
+        </Botao>
+      </div>
     </div>
   );
 }

@@ -22,14 +22,18 @@ import type { Usuario } from "@disparoy/dominio";
  */
 
 const { hooks, mostrar } = vi.hoisted(() => ({
-  hooks: { ajustar: vi.fn(), excluir: vi.fn() },
+  hooks: { ajustar: vi.fn(), excluir: vi.fn(), personificar: vi.fn() },
   mostrar: vi.fn(),
 }));
 
 vi.mock("@/hooks/consultas", () => ({
   useAjustarUsuario: () => hooks.ajustar(),
   useExcluirUsuario: () => hooks.excluir(),
+  usePersonificar: () => hooks.personificar(),
 }));
+
+// `entrarNaConta` recarrega a página; em jsdom isso explodiria a suíte.
+vi.stubGlobal("location", { assign: vi.fn() } as unknown as Location);
 
 vi.mock("@/components/ui/toast", () => ({ useToast: () => ({ mostrar }) }));
 
@@ -65,10 +69,17 @@ function montar(usuarios: Usuario[], podeExcluir = false) {
   render(<ListaUsuarios usuarios={usuarios} sessaoId={EU} podeExcluir={podeExcluir} />);
 }
 
+function personificacaoOk() {
+  const mutateAsync = vi.fn().mockResolvedValue({ token: "t", expiraEm: "2026-01-01" });
+  hooks.personificar.mockReturnValue({ mutateAsync, isPending: false });
+  return mutateAsync;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   ajusteOk();
   exclusaoOk();
+  personificacaoOk();
 });
 
 describe("ListaUsuarios — ninguém mexe no próprio acesso", () => {
@@ -245,5 +256,59 @@ describe("ListaUsuarios — excluir acesso", () => {
     await userEvent.click(screen.getByRole("button", { name: /Excluir mesmo assim/ }));
 
     expect(screen.getByText(/último administrador ativo/)).toBeTruthy();
+  });
+});
+
+/**
+ * Entrar na conta do cliente — o caminho de suporte.
+ *
+ * Emite uma sessão do cliente sem a senha dele, então o que estes testes
+ * seguram é quem consegue chegar ao botão: só a conta de administração, nunca
+ * na própria linha, e nunca num acesso desativado — senão a rota vira o jeito
+ * de contornar a desativação.
+ */
+describe("ListaUsuarios — entrar na conta", () => {
+  const eu = usuario({ id: EU, nome: "Eu Mesmo", papel: "admin" });
+
+  function botaoEntrar() {
+    return screen.queryByRole("button", { name: /^Entrar$/ });
+  }
+
+  it("sem permissão, não há como entrar na conta de ninguém", () => {
+    montar([eu, usuario()], false);
+    expect(botaoEntrar()).toBeNull();
+  });
+
+  it("com permissão, o botão aparece", () => {
+    montar([eu, usuario()], true);
+    expect(botaoEntrar()).not.toBeNull();
+  });
+
+  it("acesso desativado não oferece entrar", () => {
+    // Entrar num acesso desativado seria contornar o botão que corta o acesso
+    // de alguém na hora. A API também recusa; aqui o botão nem aparece.
+    montar([eu, usuario({ ativo: false })], true);
+    expect(botaoEntrar()).toBeNull();
+  });
+
+  it("o clique pede a sessão do alvo", async () => {
+    const entrar = personificacaoOk();
+    montar([eu, usuario()], true);
+
+    await userEvent.click(botaoEntrar()!);
+
+    expect(entrar).toHaveBeenCalledWith("u-outro");
+  });
+
+  it("recusa da API vira aviso, e ninguém é redirecionado", async () => {
+    const mutateAsync = vi.fn().mockRejectedValue(new Error("Este acesso está desativado."));
+    hooks.personificar.mockReturnValue({ mutateAsync, isPending: false });
+
+    montar([eu, usuario()], true);
+    await userEvent.click(botaoEntrar()!);
+
+    expect(mostrar).toHaveBeenCalledWith(
+      expect.objectContaining({ titulo: "Não foi possível entrar nesta conta" }),
+    );
   });
 });

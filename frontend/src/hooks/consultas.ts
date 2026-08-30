@@ -64,6 +64,7 @@ export {
   useCriarUsuario,
   useAjustarUsuario,
   useExcluirUsuario,
+  usePersonificar,
   type EmpresaResumo,
 } from "./consultas/acessos";
 
