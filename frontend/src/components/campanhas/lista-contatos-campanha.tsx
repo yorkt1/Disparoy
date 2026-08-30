@@ -182,6 +182,18 @@ export function ListaContatosCampanha({ id, aoVivo }: { id: string; aoVivo: bool
 }
 
 function LinhaContato({ contato }: { contato: ContatoDaCampanha }) {
+  /*
+   * `?? []` cobre a API que ainda não devolve o campo.
+   *
+   * Painel e API sobem separado — Vercel e Render —, então existe SEMPRE uma
+   * janela em que a tela nova conversa com o servidor antigo. Sem o padrão,
+   * `ultimasRespostas` chega `undefined` e a tela inteira cai no limite de
+   * erro com "Cannot read properties of undefined": o operador perde a lista
+   * de contatos completa por causa de um campo acessório. Mesmo motivo do
+   * `situacao ?? "pendente"` em `paraContatoDaCampanha`.
+   */
+  const respostas = contato.ultimasRespostas ?? [];
+
   return (
     <tr className="border-b border-borda last:border-0">
       <td className="px-5 py-3 align-top">
@@ -207,9 +219,9 @@ function LinhaContato({ contato }: { contato: ContatoDaCampanha }) {
           numa coluna própria: resposta é frase, não valor, e uma coluna a
           espremeria em duas palavras por linha.
         */}
-        {contato.ultimasRespostas.length > 0 ? (
+        {respostas.length > 0 ? (
           <ul className="mt-1.5 flex flex-col gap-1">
-            {contato.ultimasRespostas.map((r, i) => (
+            {respostas.map((r, i) => (
               <li
                 key={`${contato.id}-${i}`}
                 className="border-l-2 border-marca/40 pl-2 text-xs text-tinta-2"

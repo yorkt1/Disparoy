@@ -1,0 +1,23 @@
+[
+  {
+    "timestamp": 1788058558327,
+    "nodes": 1,
+    "edges": 0,
+    "pageRankSum": 1,
+    "confidences": [
+      0.5
+    ],
+    "accessCounts": [
+      0
+    ],
+    "topPatterns": [
+      {
+        "id": "mem-conversai-projeto-separado-----0",
+        "summary": "---",
+        "confidence": 0.5,
+        "pageRank": 1,
+        "accessCount": 0
+      }
+    ]
+  }
+]
