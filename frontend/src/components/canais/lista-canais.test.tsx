@@ -3,6 +3,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Canal } from "@disparoy/dominio";
+import { ErroApi } from "@/lib/api";
 
 /**
  * A tela mais perigosa do painel.
@@ -23,6 +24,7 @@ const { hooks, mostrar } = vi.hoisted(() => ({
     excluir: vi.fn(),
     vinculos: vi.fn(),
     verificar: vi.fn(),
+    reconectar: vi.fn(),
   },
   mostrar: vi.fn(),
 }));
@@ -32,7 +34,7 @@ vi.mock("@/hooks/consultas", () => ({
   useVinculosCanal: (id: string | null) => hooks.vinculos(id),
   useVerificarCanal: () => hooks.verificar(),
   useCriarCanal: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useReconectarCanal: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useReconectarCanal: () => hooks.reconectar(),
   contarContatosDoCanal: vi.fn(),
 }));
 
@@ -65,6 +67,21 @@ function exclusaoOk() {
   return mutateAsync;
 }
 
+/** Reconexão que devolve uma sessão de pareamento por QR. */
+function reconexaoOk() {
+  const mutateAsync = vi.fn().mockResolvedValue({ qrCode: "data:image/png;base64,x" });
+  hooks.reconectar.mockReturnValue({ mutateAsync, isPending: false });
+  return mutateAsync;
+}
+
+/** Reconexão que rejeita — usado para o 409 e para erro de verdade. */
+function reconexaoQueFalha(erro: unknown, depois?: unknown) {
+  const mutateAsync = vi.fn().mockRejectedValueOnce(erro);
+  if (depois !== undefined) mutateAsync.mockResolvedValueOnce(depois);
+  hooks.reconectar.mockReturnValue({ mutateAsync, isPending: false });
+  return mutateAsync;
+}
+
 function comVinculos(campanhas: { id: string; nome: string; status: string }[], isLoading = false) {
   hooks.vinculos.mockReturnValue({ data: { campanhas }, isLoading });
 }
@@ -73,11 +90,18 @@ beforeEach(() => {
   vi.clearAllMocks();
   hooks.verificar.mockReturnValue({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false });
   exclusaoOk();
+  reconexaoOk();
   comVinculos([]);
 });
 
 async function abrirExclusao(nome = "Comercial") {
   await userEvent.click(screen.getByRole("button", { name: `Excluir canal ${nome}` }));
+}
+
+/** Abre o modal de reconexão e pede o QR — o caminho mais curto até a sessão. */
+async function pedirQr() {
+  await userEvent.click(screen.getByRole("button", { name: /^Conectar$/i }));
+  await userEvent.click(screen.getByRole("button", { name: /Gerar QR Code/i }));
 }
 
 describe("ListaCanais — exclusão de canal", () => {
@@ -198,5 +222,122 @@ describe("ListaCanais — lista", () => {
   it("o canal sem número pareado não inventa um", () => {
     render(<ListaCanais canais={[canal({ numero: null, status: "aguardando_qr" })]} />);
     expect(screen.getByText("Comercial")).toBeInTheDocument();
+  });
+});
+
+/**
+ * Reconexão.
+ *
+ * Duas regras aqui nasceram de defeito real, e são as que estes testes
+ * protegem:
+ *
+ * 1. O painel NÃO derruba a sessão de ninguém. Desconectar é ato do dono, no
+ *    aparelho dele. O botão antigo chamava `PATCH { status }`, que só GRAVAVA
+ *    o estado sem tocar na sessão — era o caminho mais curto para o painel
+ *    mentir sobre o canal.
+ *
+ * 2. O 409 da API é PERGUNTA, não erro. Ele significa "a sessão está viva,
+ *    confirma que quer derrubar?". Quando a resposta caía no mesmo estado que
+ *    os erros, ela ia parar no `MensagemErro` e o botão de confirmar deixava
+ *    de existir: a pessoa lia "Confirme para prosseguir" e fechava, sem ter o
+ *    que clicar.
+ */
+describe("ListaCanais — reconexão", () => {
+  const caido = (patch: Partial<Canal> = {}) => canal({ status: "desconectado", ...patch });
+
+  it("canal conectado não oferece Conectar — o painel não derruba sessão de ninguém", () => {
+    render(<ListaCanais canais={[canal({ status: "conectado" })]} />);
+    expect(screen.queryByRole("button", { name: /^Conectar$/i })).not.toBeInTheDocument();
+  });
+
+  it("canal caído oferece o caminho de volta", () => {
+    render(<ListaCanais canais={[caido()]} />);
+    expect(screen.getByRole("button", { name: /^Conectar$/i })).toBeInTheDocument();
+  });
+
+  it("pareamento por código recusa número inválido sem chamar a API", async () => {
+    const mutateAsync = reconexaoOk();
+    render(<ListaCanais canais={[caido({ numero: null })]} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /^Conectar$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /Código de 8 dígitos/i }));
+    await userEvent.click(screen.getByRole("button", { name: /Gerar código/i }));
+
+    expect(mutateAsync).not.toHaveBeenCalled();
+    expect(screen.getByText(/com DDD/i)).toBeInTheDocument();
+  });
+
+  it("pareamento por QR não pede número", async () => {
+    const mutateAsync = reconexaoOk();
+    render(<ListaCanais canais={[caido({ numero: null })]} />);
+    await pedirQr();
+
+    expect(mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "canal-1", metodoPareamento: "qrcode" }),
+    );
+  });
+
+  it("a primeira tentativa NÃO manda forcar", async () => {
+    // `forcar: false` explícito daria no mesmo no servidor, mas apagaria a
+    // distinção entre "ainda não perguntei" e "perguntei e a pessoa disse não"
+    // para quem for ler o payload investigando um disparo cortado no meio.
+    const mutateAsync = reconexaoOk();
+    render(<ListaCanais canais={[caido()]} />);
+    await pedirQr();
+
+    expect(mutateAsync.mock.calls[0][0]).not.toHaveProperty("forcar");
+  });
+
+  it("409 é PERGUNTA, não erro: oferece derrubar em vez de virar beco sem saída", async () => {
+    reconexaoQueFalha(new ErroApi("A sessão está ativa. Confirme para prosseguir.", 409));
+    render(<ListaCanais canais={[caido()]} />);
+    await pedirQr();
+
+    expect(screen.getByRole("button", { name: /Derrubar e reconectar/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Manter conectado/i })).toBeInTheDocument();
+  });
+
+  it("o aviso do 409 é o texto da API, não uma segunda versão escrita no front", async () => {
+    // Quem sabe o que vai ser derrubado é o servidor — ele perguntou ao
+    // gateway. Uma frase própria aqui divergiria no primeiro ajuste e
+    // explicaria uma consequência diferente da que vai acontecer.
+    reconexaoQueFalha(new ErroApi("Sessao viva desde ontem.", 409));
+    render(<ListaCanais canais={[caido()]} />);
+    await pedirQr();
+
+    expect(screen.getByText("Sessao viva desde ontem.")).toBeInTheDocument();
+  });
+
+  it("confirmar o 409 reenvia com forcar", async () => {
+    const mutateAsync = reconexaoQueFalha(new ErroApi("Confirme para prosseguir.", 409), {
+      qrCode: "data:image/png;base64,x",
+    });
+    render(<ListaCanais canais={[caido()]} />);
+    await pedirQr();
+    await userEvent.click(screen.getByRole("button", { name: /Derrubar e reconectar/i }));
+
+    expect(mutateAsync).toHaveBeenCalledTimes(2);
+    expect(mutateAsync.mock.calls[1][0]).toMatchObject({ forcar: true });
+  });
+
+  it("manter conectado sai sem derrubar nada", async () => {
+    const mutateAsync = reconexaoQueFalha(new ErroApi("Confirme para prosseguir.", 409));
+    render(<ListaCanais canais={[caido()]} />);
+    await pedirQr();
+    await userEvent.click(screen.getByRole("button", { name: /Manter conectado/i }));
+
+    // Uma chamada só: a que recebeu o 409. Nada foi derrubado.
+    expect(mutateAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it("erro que não é 409 continua sendo erro", async () => {
+    reconexaoQueFalha(new ErroApi("Gateway fora do ar.", 502));
+    render(<ListaCanais canais={[caido()]} />);
+    await pedirQr();
+
+    expect(screen.getByText("Gateway fora do ar.")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Derrubar e reconectar/i }),
+    ).not.toBeInTheDocument();
   });
 });
