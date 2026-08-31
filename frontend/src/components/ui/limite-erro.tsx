@@ -1,5 +1,6 @@
 import * as React from "react";
-import { AlertTriangle, Check, Copy } from "lucide-react";
+import { AlertTriangle, Check, Copy, RefreshCw } from "lucide-react";
+import { ehModuloDesatualizado, recarregarPorVersaoNova } from "@/lib/versao";
 import { Botao } from "./botao";
 
 /**
@@ -47,6 +48,19 @@ export class LimiteErro extends React.Component<Props, Estado> {
   }
 
   componentDidCatch(erro: Error, info: React.ErrorInfo): void {
+    /*
+     * Chunk de uma versão que não está mais publicada.
+     *
+     * Não é defeito de tela nenhuma: a aba foi aberta antes de um deploy e
+     * pede um arquivo que a Vercel já substituiu. Recarregar traz o índice
+     * novo e resolve, então a pessoa não precisa ver — nem entender — uma tela
+     * de erro para isso.
+     *
+     * Se a recarga não acontecer (já houve uma há pouco, ou o armazenamento
+     * está bloqueado), o `render` explica o caso em vez de mostrar a stack.
+     */
+    if (ehModuloDesatualizado(erro) && recarregarPorVersaoNova()) return;
+
     // Sem serviço de erro configurado, o console é o que existe. Fica com a
     // pilha de componentes junto, que é a parte que a stack do erro não tem.
     console.error("Erro não tratado no painel:", erro, info.componentStack);
@@ -98,6 +112,38 @@ export class LimiteErro extends React.Component<Props, Estado> {
   render(): React.ReactNode {
     const { erro, copiado } = this.state;
     if (!erro) return this.props.children;
+
+    /*
+     * A versão nova ganha tela própria, e não a de "esta tela quebrou".
+     *
+     * São problemas de natureza diferente: um é defeito, o outro é o painel
+     * ter sido atualizado enquanto a aba estava aberta. Chamar o segundo de
+     * "quebrou" — com stack e botão de copiar detalhes — faz o operador
+     * relatar um bug que não existe, e nos manda caçar um erro de tela que
+     * some sozinho ao recarregar.
+     */
+    if (ehModuloDesatualizado(erro)) {
+      return (
+        <div className="grid min-h-[60dvh] place-items-center px-4">
+          <div className="max-w-sm rounded-card border border-borda bg-superficie px-6 py-6 text-center">
+            <RefreshCw aria-hidden className="mx-auto size-6 text-tinta-3" />
+            <p className="mt-3 text-sm font-medium text-tinta">O painel foi atualizado</p>
+            <p className="mt-1 text-xs text-tinta-2">
+              Esta aba está com a versão anterior. Recarregue para continuar — nada do seu
+              trabalho foi perdido.
+            </p>
+            <Botao
+              variante="primario"
+              tamanho="sm"
+              onClick={this.recarregar}
+              className="mt-4"
+            >
+              Recarregar o painel
+            </Botao>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="grid min-h-[60dvh] place-items-center px-4">

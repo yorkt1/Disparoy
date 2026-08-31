@@ -8,6 +8,7 @@ import { ProvedorAuth } from "./auth/contexto-auth";
 import { ProvedorToast } from "./components/ui/toast";
 import { LimiteErro } from "./components/ui/limite-erro";
 import { ErroApi } from "./lib/api";
+import { vigiarVersaoNova } from "./lib/versao";
 
 const cliente = new QueryClient({
   defaultOptions: {
@@ -23,6 +24,13 @@ const cliente = new QueryClient({
     },
   },
 });
+
+/*
+ * Antes de montar nada: uma aba aberta durante um deploy pede chunks que não
+ * existem mais, e o Vite avisa por evento antes de o erro chegar ao React.
+ * Recarregar ali resolve sem ninguém ver tela de erro.
+ */
+vigiarVersaoNova();
 
 const raiz = document.getElementById("raiz");
 if (!raiz) throw new Error("Elemento #raiz não encontrado no index.html.");
