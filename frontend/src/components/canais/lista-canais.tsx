@@ -302,12 +302,29 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
       chave: "acoes",
       titulo: "Ações",
       alinhamento: "direita",
-      celula: (c) => (
+      celula: (c) => {
+        /*
+         * As AÇÕES saem de `apresentarCanal()`, pelo mesmo motivo que o selo.
+         *
+         * Enquanto elas liam `c.status` cru, a linha se contradizia: o selo
+         * dizia "Aguardando QR — marcado como conectado, mas o pareamento
+         * nunca foi concluído" e os botões, lendo o `conectado` mentiroso do
+         * cache, ofereciam "Contatos" e ESCONDIAM "Conectar". O canal ficava
+         * sem saída pelo produto — só restava excluir e criar outro.
+         *
+         * Foi o que aconteceu com um canal real: o operador leu o QR, a
+         * confirmação demorou, ele fechou o modal, e o webhook gravou
+         * `conectado` sem o número que só chega no pareamento completo.
+         */
+        const a = apresentarCanal(c);
+        const conectado = a.status === "conectado";
+
+        return (
         <div className="flex items-center justify-end gap-1">
           {/* Só faz sentido com sessão aberta: sem ela a Evolution devolve
               lista vazia, e o operador baixaria zero linhas achando que a
               agenda dele está vazia. */}
-          {c.status === "conectado" && (
+          {conectado && (
             /*
              * `carregando` em vez de um ícone piscando.
              *
@@ -344,7 +361,7 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
             O botão antigo também mentia: chamava `PATCH { status }`, que só
             GRAVAVA o estado sem tocar na sessão real.
           */}
-          {c.status !== "conectado" && (
+          {!conectado && (
             <Botao
               tamanho="sm"
               variante="fantasma"
@@ -366,7 +383,8 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
             <Trash2 aria-hidden className="size-3.5" />
           </Botao>
         </div>
-      ),
+        );
+      },
     },
   ];
 

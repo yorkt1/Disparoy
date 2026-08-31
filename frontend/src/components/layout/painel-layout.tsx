@@ -28,9 +28,27 @@ export function PainelLayout() {
         <div className="max-w-md rounded-card border border-critico/35 bg-critico/8 px-5 py-4 text-center">
           <p className="text-sm font-medium text-critico">Não foi possível carregar sua conta</p>
           <p className="mt-1 text-xs text-tinta-2">
-            {error instanceof Error ? error.message : "A API não respondeu."} Confira se a API está
-            no ar em <code className="text-tinta">localhost:3333</code>.
+            {error instanceof Error ? error.message : "A API não respondeu."}{" "}
+            {/*
+              A dica de localhost é para QUEM DESENVOLVE, e só aparece aqui.
+
+              Em produção ela chegou à tela de um cliente, embaixo de "Este
+              acesso foi desativado": ele não tem localhost:3333 nenhum para
+              conferir, e o que a frase comunica é que o sistema está pela
+              metade — bem no momento em que ele já está com um problema.
+            */}
+            {import.meta.env.DEV
+              ? "Confira se a API está no ar em localhost:3333."
+              : "Tente novamente em alguns instantes. Se continuar, avise o suporte."}
           </p>
+          <Botao
+            variante="secundario"
+            tamanho="sm"
+            onClick={() => window.location.reload()}
+            className="mt-3"
+          >
+            Tentar de novo
+          </Botao>
         </div>
       </div>
     );

@@ -341,3 +341,37 @@ describe("ListaCanais — reconexão", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+/**
+ * O canal que se contradiz: `status: "conectado"` gravado, mas sem número.
+ *
+ * É o estado real que apareceu em produção — o operador leu o QR, a
+ * confirmação demorou, ele fechou o modal, e o webhook gravou `conectado` sem
+ * o número, que só chega quando o pareamento termina.
+ *
+ * O selo já dizia a verdade ("marcado como conectado, mas o pareamento nunca
+ * foi concluído"), porque lê `apresentarCanal()`. As AÇÕES liam `c.status`
+ * cru, e a linha se contradizia: oferecia "Contatos" e escondia "Conectar",
+ * deixando o canal sem saída pelo produto — só restava excluir e criar outro.
+ */
+describe("ListaCanais — canal marcado como conectado que nunca pareou", () => {
+  const contraditorio = canal({ status: "conectado", numero: null });
+
+  it("oferece Conectar, que é o caminho de volta", () => {
+    render(<ListaCanais canais={[contraditorio]} />);
+    // Âncoras no nome: "Conectar canal", do cabeçalho, também casaria.
+    expect(screen.getByRole("button", { name: /^Conectar$/ })).toBeInTheDocument();
+  });
+
+  it("não oferece Contatos, que baixaria uma agenda vazia", () => {
+    // Sem sessão a Evolution devolve lista vazia, e o operador concluiria que
+    // a agenda do número está vazia em vez de que o canal não conectou.
+    render(<ListaCanais canais={[contraditorio]} />);
+    expect(screen.queryByRole("button", { name: /Contatos/i })).not.toBeInTheDocument();
+  });
+
+  it("o canal realmente conectado continua oferecendo Contatos", () => {
+    render(<ListaCanais canais={[canal()]} />);
+    expect(screen.getByRole("button", { name: /Contatos/i })).toBeInTheDocument();
+  });
+});
