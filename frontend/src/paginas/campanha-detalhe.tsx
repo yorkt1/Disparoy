@@ -146,7 +146,7 @@ export function PaginaDetalheCampanha() {
       const { campanha: copia } = await duplicacao.mutateAsync(id);
       mostrar({
         tipo: "sucesso",
-        titulo: "Campanha duplicada",
+        titulo: campanhaAtual.status === "concluida" ? "Pronta para reenviar" : "Campanha duplicada",
         descricao: `"${copia.nome}" foi criada como rascunho com ${formatarNumero(copia.metricas.total)} contato(s). Nada foi disparado.`,
       });
       navegar(`/campanhas/${copia.id}`);
@@ -219,14 +219,28 @@ export function PaginaDetalheCampanha() {
               <Pencil aria-hidden className="size-4" />
               Editar
             </BotaoLink>
+            {/*
+              O rótulo segue a INTENÇÃO, não o mecanismo.
+
+              A ação é a mesma nos dois casos — cria uma cópia em rascunho —,
+              mas "Duplicar" só descreve o que o sistema faz. Quem terminou uma
+              campanha e quer mandar de novo procura "reenviar", não acha, e
+              conclui que o produto não tem isso. Foi exatamente o que
+              aconteceu: "como que eu reenvio ela? se tem tá escondido".
+            */}
             <Botao
               tamanho="sm"
               variante="secundario"
               carregando={duplicacao.isPending}
               onClick={() => void duplicar()}
+              title={
+                campanha.status === "concluida"
+                  ? "Cria uma cópia desta campanha em rascunho, com o mesmo público e as mesmas mensagens. Nada é disparado até você iniciar."
+                  : "Cria uma cópia desta campanha em rascunho, para editar sem mexer na original."
+              }
             >
               {!duplicacao.isPending ? <Copy aria-hidden className="size-4" /> : null}
-              Duplicar
+              {campanha.status === "concluida" ? "Reenviar" : "Duplicar"}
             </Botao>
             <Botao tamanho="sm" variante="perigo" carregando={exclusao.isPending} onClick={() => void excluir()}>
               {!exclusao.isPending ? <Trash2 aria-hidden className="size-4" /> : null}

@@ -25,6 +25,7 @@ const { hooks, mostrar } = vi.hoisted(() => ({
     vinculos: vi.fn(),
     verificar: vi.fn(),
     reconectar: vi.fn(),
+    incidentes: vi.fn(),
   },
   mostrar: vi.fn(),
 }));
@@ -35,6 +36,7 @@ vi.mock("@/hooks/consultas", () => ({
   useVerificarCanal: () => hooks.verificar(),
   useCriarCanal: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useReconectarCanal: () => hooks.reconectar(),
+  useIncidentesAbertos: () => hooks.incidentes(),
   contarContatosDoCanal: vi.fn(),
 }));
 
@@ -58,6 +60,11 @@ function canal(patch: Partial<Canal> = {}): Canal {
     fotoUrl: null,
     ...patch,
   } as Canal;
+}
+
+/** Sem incidente aberto — o estado normal de quase todo canal. */
+function semIncidentes() {
+  hooks.incidentes.mockReturnValue({ data: [] });
 }
 
 /** Exclusão que resolve, no formato que o componente espera do React Query. */
@@ -89,6 +96,7 @@ function comVinculos(campanhas: { id: string; nome: string; status: string }[], 
 beforeEach(() => {
   vi.clearAllMocks();
   hooks.verificar.mockReturnValue({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false });
+  semIncidentes();
   exclusaoOk();
   reconexaoOk();
   comVinculos([]);
@@ -373,5 +381,42 @@ describe("ListaCanais — canal marcado como conectado que nunca pareou", () => 
   it("o canal realmente conectado continua oferecendo Contatos", () => {
     render(<ListaCanais canais={[canal()]} />);
     expect(screen.getByRole("button", { name: /Contatos/i })).toBeInTheDocument();
+  });
+});
+
+/**
+ * O motivo aparece na linha do canal, e não só no Diagnóstico.
+ *
+ * Um número já usado por outro canal faz o pareamento concluir sem gravar o
+ * número. O selo passa a dizer "Aguardando QR" — verdade, e que não explica
+ * nada. Sem o motivo aqui, o operador relê o QR indefinidamente, porque a
+ * explicação está numa tela que ele não tem motivo para abrir.
+ */
+describe("ListaCanais — motivo do incidente na linha", () => {
+  const MOTIVO = 'Este WhatsApp já está no canal "Comercial".';
+
+  function comIncidente(canalId: string) {
+    hooks.incidentes.mockReturnValue({
+      data: [{ id: 1, canalId, detalhe: MOTIVO, titulo: "Número já conectado em outro canal" }],
+    });
+  }
+
+  it("mostra o motivo do incidente aberto do canal", () => {
+    comIncidente("canal-1");
+    render(<ListaCanais canais={[canal({ status: "conectado", numero: null })]} />);
+    expect(screen.getByText(MOTIVO)).toBeInTheDocument();
+  });
+
+  it("não mostra o motivo de um incidente de OUTRO canal", () => {
+    // O incidente é de outro canal: mostrá-lo aqui atribuiria a este canal um
+    // problema que não é dele — pior que não mostrar nada.
+    comIncidente("canal-outro");
+    render(<ListaCanais canais={[canal({ status: "conectado", numero: null })]} />);
+    expect(screen.queryByText(MOTIVO)).not.toBeInTheDocument();
+  });
+
+  it("canal sem incidente não ganha texto nenhum", () => {
+    render(<ListaCanais canais={[canal()]} />);
+    expect(screen.queryByText(MOTIVO)).not.toBeInTheDocument();
   });
 });

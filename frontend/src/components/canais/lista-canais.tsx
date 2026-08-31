@@ -12,7 +12,12 @@ import { baixarArquivo, mensagemDe } from "@/lib/api";
 import { ModalExcluirCanal } from "./modal-excluir-canal";
 import { ModalConectarCanal } from "./modal-conectar-canal";
 import { ModalReconectarCanal } from "./modal-reconectar-canal";
-import { contarContatosDoCanal, useExcluirCanal, useVerificarCanal } from "@/hooks/consultas";
+import {
+  contarContatosDoCanal,
+  useExcluirCanal,
+  useIncidentesAbertos,
+  useVerificarCanal,
+} from "@/hooks/consultas";
 
 /**
  * Confere sozinho, ao abrir a tela, os canais sem verificação recente.
@@ -74,6 +79,25 @@ function useVerificacaoAutomatica(canais: Canal[]): boolean {
 }
 
 export function ListaCanais({ canais }: { canais: Canal[] }) {
+  /*
+   * Os incidentes abertos entram AQUI, na linha do canal, e não só no
+   * Diagnóstico.
+   *
+   * O caso que motivou: um número já usado por outro canal faz o pareamento
+   * concluir e o número não ser gravado. O selo então diz "Aguardando QR", que
+   * é verdade e não explica nada — e o operador relê o QR indefinidamente,
+   * porque a explicação estava em outra tela que ele não tinha motivo para
+   * abrir. O motivo tem que estar onde o problema aparece.
+   */
+  const incidentes = useIncidentesAbertos();
+  const motivoDoCanal = React.useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const i of incidentes.data ?? []) {
+      if (i.canalId && i.detalhe && !mapa.has(i.canalId)) mapa.set(i.canalId, i.detalhe);
+    }
+    return mapa;
+  }, [incidentes.data]);
+
   const [status, setStatus] = React.useState("todos");
   const [conectando, setConectando] = React.useState(false);
   const [reconectando, setReconectando] = React.useState<Canal | null>(null);
@@ -270,10 +294,16 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
        */
       celula: (c) => {
         const a = apresentarCanal(c);
+        const motivo = motivoDoCanal.get(c.id);
         return (
           <div>
             <SeloCanal status={a.status} confianca={a.confianca} />
             {a.detalhe ? <p className="mt-1 text-xs text-tinta-3">{a.detalhe}</p> : null}
+            {/*
+              O incidente vem depois do detalhe e em cor de alerta: o detalhe
+              descreve o estado, o incidente diz o que fazer a respeito.
+            */}
+            {motivo ? <p className="mt-1 max-w-xs text-xs text-aviso">{motivo}</p> : null}
           </div>
         );
       },
