@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ClipboardList, FileSpreadsheet, Trash2, TriangleAlert } from "lucide-react";
+import { ClipboardList, Download, FileSpreadsheet, Trash2, TriangleAlert } from "lucide-react";
 import {
   detectarColunaNome,
   detectarColunaTelefone,
@@ -13,7 +13,7 @@ import { Botao } from "@/components/ui/botao";
 import { AreaTexto } from "@/components/ui/campos";
 import { Dropzone } from "@/components/ui/dropzone";
 import { useToast } from "@/components/ui/toast";
-import { api, ErroApi } from "@/lib/api";
+import { api, ErroApi, urlDaApi } from "@/lib/api";
 import { formatarNumero, formatarTelefone } from "@/lib/formato";
 import type { ContatoPublico } from "@/hooks/use-formulario-campanha";
 
@@ -147,6 +147,26 @@ export function SeletorPublico({
             demais viram variáveis do texto. Dá para extrair a agenda de um canal conectado em{" "}
             <strong className="text-tinta-2">Canais → Contatos</strong>.
           </p>
+          {/*
+            O modelo em branco, com o cabeçalho certo.
+
+            A API serve este arquivo desde sempre, e é `@Publico()` justamente
+            para caber num `<a download>` — o link é que nunca existiu. Quem
+            montava a planilha à mão adivinhava o cabeçalho, errava, e recebia
+            "confira se a planilha tem uma coluna com os números" sem nunca ser
+            oferecido o arquivo que resolve.
+
+            `<a>` e não `Botao`: quem baixa é o navegador, e a rota é pública
+            de propósito — não há token para mandar.
+          */}
+          <a
+            href={urlDaApi("/contatos/modelo")}
+            download
+            className="inline-flex w-fit items-center gap-1.5 text-xs text-marca underline-offset-2 hover:underline"
+          >
+            <Download aria-hidden className="size-3.5" />
+            Baixar planilha-modelo
+          </a>
         </div>
       ) : (
         <div className="flex flex-col gap-2">

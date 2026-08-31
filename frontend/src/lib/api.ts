@@ -47,6 +47,18 @@ function baseDaApi(): string {
 const BASE = baseDaApi();
 
 /**
+ * URL absoluta de uma rota, para quando o navegador é quem busca.
+ *
+ * `<a download>` e `<img src>` não passam pelo `chamarApi` — quem faz a
+ * requisição é o navegador, sem o header `Authorization`. Montar o caminho à
+ * mão nas telas ignoraria `VITE_API_URL` e quebraria justamente na
+ * configuração em que a API mora noutro domínio.
+ */
+export function urlDaApi(caminho: string): string {
+  return `${BASE}${caminho}`;
+}
+
+/**
  * O 403 que na verdade é sessão morta.
  *
  * O `AuthGuard` responde 403 para perfil desativado, e não 401 — o token está
