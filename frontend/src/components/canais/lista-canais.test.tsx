@@ -26,6 +26,10 @@ const { hooks, mostrar } = vi.hoisted(() => ({
     verificar: vi.fn(),
     reconectar: vi.fn(),
     incidentes: vi.fn(),
+    ehAdmin: vi.fn(),
+    membros: vi.fn(),
+    definirMembro: vi.fn(),
+    removerMembro: vi.fn(),
   },
   mostrar: vi.fn(),
 }));
@@ -37,6 +41,11 @@ vi.mock("@/hooks/consultas", () => ({
   useCriarCanal: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useReconectarCanal: () => hooks.reconectar(),
   useIncidentesAbertos: () => hooks.incidentes(),
+  useEhAdmin: () => hooks.ehAdmin(),
+  useMembrosCanal: (id: string | null) => hooks.membros(id),
+  useDefinirMembro: () => hooks.definirMembro(),
+  useRemoverMembro: () => hooks.removerMembro(),
+  useUsuarios: () => ({ data: [] }),
   contarContatosDoCanal: vi.fn(),
 }));
 
@@ -60,6 +69,19 @@ function canal(patch: Partial<Canal> = {}): Canal {
     fotoUrl: null,
     ...patch,
   } as Canal;
+}
+
+/**
+ * Operador, que é o caso mais restrito.
+ *
+ * O padrão dos testes é o acesso SEM privilégio: assim, um botão que aparecer
+ * onde não devia quebra alguma coisa aqui em vez de passar despercebido.
+ */
+function comoOperador() {
+  hooks.ehAdmin.mockReturnValue(false);
+  hooks.membros.mockReturnValue({ data: [], isLoading: false });
+  hooks.definirMembro.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+  hooks.removerMembro.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
 }
 
 /** Sem incidente aberto — o estado normal de quase todo canal. */
@@ -97,6 +119,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   hooks.verificar.mockReturnValue({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false });
   semIncidentes();
+  comoOperador();
   exclusaoOk();
   reconexaoOk();
   comVinculos([]);
@@ -418,5 +441,54 @@ describe("ListaCanais — motivo do incidente na linha", () => {
   it("canal sem incidente não ganha texto nenhum", () => {
     render(<ListaCanais canais={[canal()]} />);
     expect(screen.queryByText(MOTIVO)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Compartilhar o canal com a equipe.
+ *
+ * As rotas existiam na API e nenhuma tela as chamava. Ficou urgente quando
+ * conectar canal deixou de ser ato administrativo: o operador conecta o
+ * próprio número, vira dono sozinho, e nenhum colega enxerga aquele canal para
+ * usar numa campanha.
+ */
+describe("ListaCanais — acessos do canal", () => {
+  function botaoAcessos() {
+    return screen.queryByRole("button", { name: /^Acessos$/ });
+  }
+
+  it("operador não vê o botão de acessos", () => {
+    // Não é escolha de produto: o seletor de pessoas vem de `GET /usuarios`,
+    // que a API restringe a administrador. Mostrar o botão daria um modal sem
+    // ninguém para escolher.
+    render(<ListaCanais canais={[canal()]} />);
+    expect(botaoAcessos()).toBeNull();
+  });
+
+  it("admin vê o botão", () => {
+    hooks.ehAdmin.mockReturnValue(true);
+    render(<ListaCanais canais={[canal()]} />);
+    expect(botaoAcessos()).not.toBeNull();
+  });
+
+  it("o dono do canal não pode ser removido", async () => {
+    // Tirar quem conectou o aparelho deixaria o canal sem responsável — e é o
+    // dono quem pode excluí-lo. Para trocar de dono, exclui e reconecta.
+    hooks.ehAdmin.mockReturnValue(true);
+    hooks.membros.mockReturnValue({
+      data: [
+        { canalId: "canal-1", perfilId: "p1", nome: "Dona do número", permissao: "owner" },
+        { canalId: "canal-1", perfilId: "p2", nome: "Colega", permissao: "operator" },
+      ],
+      isLoading: false,
+    });
+
+    render(<ListaCanais canais={[canal()]} />);
+    await userEvent.click(botaoAcessos()!);
+
+    expect(screen.queryByRole("button", { name: /Remover o acesso de Dona do número/ })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: /Remover o acesso de Colega/ }),
+    ).toBeInTheDocument();
   });
 });

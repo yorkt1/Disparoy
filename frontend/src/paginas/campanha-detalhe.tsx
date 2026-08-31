@@ -73,7 +73,12 @@ export function PaginaDetalheCampanha() {
   const podeRetomar =
     campanha.status === "pausada" ||
     campanha.status === "pausada_por_canal" ||
-    campanha.status === "rascunho";
+    campanha.status === "rascunho" ||
+    // `falhou` numa CAMPANHA significa que ela não chegou a disparar — o
+    // agendamento venceu, ou não havia canal conectado na hora. Nada foi
+    // enviado e os contatos seguem pendentes, então há o que retomar. Sem
+    // isto ela ficava sem botão nenhum, e o único caminho era duplicar.
+    campanha.status === "falhou";
 
   /*
    * Rascunho não se "retoma": ele nunca começou.
@@ -84,7 +89,9 @@ export function PaginaDetalheCampanha() {
    * aquilo como "mandar esta campanha" e concluía que o reenvio não funcionou.
    * O botão certo estava ali, com o nome do outro caso.
    */
-  const ehRascunho = campanha.status === "rascunho";
+  // Rascunho e `falhou` nunca dispararam: para os dois o verbo é iniciar, não
+  // retomar. "Retomar" só descreve a volta de uma pausa.
+  const ehRascunho = campanha.status === "rascunho" || campanha.status === "falhou";
 
   async function alterar(acao: "pausar" | "retomar") {
     try {

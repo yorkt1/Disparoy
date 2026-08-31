@@ -44,6 +44,9 @@ export {
   useCriarCanal,
   useReconectarCanal,
   type Pareamento,
+  useMembrosCanal,
+  useDefinirMembro,
+  useRemoverMembro,
 } from "./consultas/canais";
 
 export {

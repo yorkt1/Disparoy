@@ -1,6 +1,15 @@
 import * as React from "react";
 
-import { BadgeCheck, Download, Plus, PlugZap, QrCode, Smartphone, Trash2 } from "lucide-react";
+import {
+  BadgeCheck,
+  Download,
+  Plus,
+  PlugZap,
+  QrCode,
+  Smartphone,
+  Trash2,
+  Users2,
+} from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { EstadoVazio } from "@/components/ui/primitivos";
 import { Tabela, FiltroSelecao, type Coluna } from "@/components/ui/tabela";
@@ -12,9 +21,11 @@ import { baixarArquivo, mensagemDe } from "@/lib/api";
 import { ModalExcluirCanal } from "./modal-excluir-canal";
 import { ModalConectarCanal } from "./modal-conectar-canal";
 import { ModalReconectarCanal } from "./modal-reconectar-canal";
+import { ModalCompartilharCanal } from "./modal-compartilhar-canal";
 import {
   contarContatosDoCanal,
   useExcluirCanal,
+  useEhAdmin,
   useIncidentesAbertos,
   useVerificarCanal,
 } from "@/hooks/consultas";
@@ -103,6 +114,10 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
   const [reconectando, setReconectando] = React.useState<Canal | null>(null);
   const [extraindo, setExtraindo] = React.useState<string | null>(null);
   const [excluindo, setExcluindo] = React.useState<Canal | null>(null);
+  const [compartilhando, setCompartilhando] = React.useState<Canal | null>(null);
+  // Compartilhar é do admin da empresa: a lista de pessoas vem de
+  // `GET /usuarios`, que a API restringe a administrador.
+  const ehAdmin = useEhAdmin();
   const { mostrar } = useToast();
 
   const exclusao = useExcluirCanal();
@@ -402,6 +417,24 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
               Conectar
             </Botao>
           )}
+          {/*
+            Quem mais opera este número.
+
+            Fica antes de excluir e depois das ações do dia a dia. Só para
+            admin: a lista de pessoas do seletor vem de `GET /usuarios`, que a
+            API restringe a administrador.
+          */}
+          {ehAdmin && (
+            <Botao
+              tamanho="sm"
+              variante="fantasma"
+              onClick={() => setCompartilhando(c)}
+              title="Escolhe quem mais vê este canal e pode usá-lo nas campanhas"
+            >
+              <Users2 aria-hidden className="size-3.5" />
+              Acessos
+            </Botao>
+          )}
           <Botao
             tamanho="icone"
             variante="fantasma"
@@ -484,6 +517,7 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
         aoExtrair={extrair}
         extraindo={extraindo}
       />
+      <ModalCompartilharCanal canal={compartilhando} aoFechar={() => setCompartilhando(null)} />
       <ModalReconectarCanal
         canal={reconectando}
         aoFechar={() => setReconectando(null)}

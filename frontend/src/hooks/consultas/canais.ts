@@ -1,5 +1,11 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import type { Canal, MetodoPareamento, StatusCampanha } from "@disparoy/dominio";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type {
+  Canal,
+  MembroCanal,
+  MetodoPareamento,
+  PermissaoCanal,
+  StatusCampanha,
+} from "@disparoy/dominio";
 import { api } from "@/lib/api";
 import { chaves, useInvalidar } from "./nucleo";
 
@@ -148,5 +154,60 @@ export function useReconectarCanal() {
       return api.post<Pareamento>(`/canais/${id}/reconectar`, corpo);
     },
     onSuccess: () => invalidar("canais", "campanhas", "metricas", "avisos"),
+  });
+}
+
+// --------------------------------------------------------------------------
+// Compartilhamento do canal com a equipe
+// --------------------------------------------------------------------------
+
+/**
+ * Quem opera este canal além de quem o conectou.
+ *
+ * As três rotas de membros existiam na API desde sempre e nenhuma tela as
+ * chamava. Passou a doer quando conectar canal deixou de ser ato
+ * administrativo: o operador cria o canal dele, vira `owner` sozinho, e
+ * nenhum colega enxerga o número — sem caminho nenhum para compartilhar.
+ *
+ * `habilitado` porque a consulta só faz sentido com um canal escolhido; o
+ * modal monta antes de haver um.
+ */
+export function useMembrosCanal(canalId: string | null) {
+  return useQuery({
+    queryKey: ["canal-membros", canalId],
+    queryFn: () => api.get<{ membros: MembroCanal[] }>(`/canais/${canalId}/membros`),
+    select: (r) => r.membros,
+    enabled: canalId !== null,
+  });
+}
+
+export function useDefinirMembro() {
+  const cliente = useQueryClient();
+  const invalidar = useInvalidar();
+  return useMutation({
+    mutationFn: (v: { canalId: string; perfilId: string; permissao: PermissaoCanal }) =>
+      api.post<{ vinculado: string }>(`/canais/${v.canalId}/membros`, {
+        perfilId: v.perfilId,
+        permissao: v.permissao,
+      }),
+    onSuccess: (_r, v) => {
+      void cliente.invalidateQueries({ queryKey: ["canal-membros", v.canalId] });
+      // `canais` junto: quem ganhou acesso passa a ver o canal na lista dele,
+      // e quem compartilhou não tem por que recarregar a página para conferir.
+      invalidar("canais");
+    },
+  });
+}
+
+export function useRemoverMembro() {
+  const cliente = useQueryClient();
+  const invalidar = useInvalidar();
+  return useMutation({
+    mutationFn: (v: { canalId: string; perfilId: string }) =>
+      api.delete<{ removido: string }>(`/canais/${v.canalId}/membros/${v.perfilId}`),
+    onSuccess: (_r, v) => {
+      void cliente.invalidateQueries({ queryKey: ["canal-membros", v.canalId] });
+      invalidar("canais");
+    },
   });
 }
