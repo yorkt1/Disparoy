@@ -46,6 +46,29 @@ function baseDaApi(): string {
 
 const BASE = baseDaApi();
 
+/**
+ * O 403 que na verdade é sessão morta.
+ *
+ * O `AuthGuard` responde 403 para perfil desativado, e não 401 — o token está
+ * perfeitamente válido, quem não vale mais é a conta. Só que o efeito para
+ * quem usa é o mesmo do 401: não dá para fazer nada, e não adianta tentar de
+ * novo.
+ *
+ * Sem este caso, a sessão morta ficava no `localStorage` e o painel travava na
+ * tela de "não foi possível carregar sua conta", sem caminho para o login —
+ * recarregar mandava o mesmo token e recebia o mesmo 403. Foi assim que um
+ * cliente ficou preso: a aba de um navegador tinha a sessão de um acesso
+ * desativado depois, e a de outro navegador tinha uma sessão boa.
+ *
+ * O casamento é pela mensagem porque é o que a API dá — os outros 403 são
+ * "esta ação é restrita a administradores" e "você não tem acesso a este
+ * canal", que são recusas de UMA ação e não podem derrubar a sessão de
+ * ninguém.
+ */
+function sessaoMortaPor403(status: number, erro?: string): boolean {
+  return status === 403 && /desativad/i.test(erro ?? "");
+}
+
 export class ErroApi extends Error {
   constructor(
     message: string,
@@ -119,12 +142,15 @@ export async function chamarApi<T>(caminho: string, opcoes: OpcoesRequisicao = {
   }
 
   if (!resposta.ok) {
+    const c = dados as { erro?: string; erros?: Record<string, string> } | null;
+
     // 401 é sessão morta (expirada, perfil excluído, JWT_SECRET trocado).
     // Mesmo sem token, a sessão pode ter expirado entre a renderização e esta
     // chamada; limpar aqui acorda o provider e interrompe o polling.
-    if (resposta.status === 401) limparSessao();
+    if (resposta.status === 401 || sessaoMortaPor403(resposta.status, c?.erro)) {
+      limparSessao();
+    }
 
-    const c = dados as { erro?: string; erros?: Record<string, string> } | null;
     throw new ErroApi(c?.erro ?? `Erro ${resposta.status}.`, resposta.status, c?.erros);
   }
 
