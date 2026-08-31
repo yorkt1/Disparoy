@@ -9,6 +9,16 @@
       "destination": "https://disparoy-backend.onrender.com/api/$1"
     },
     {
+      "//": "Asset que nao existe tem de dar 404, e nao cair no index.html.",
+      "//2": "Sem esta regra, a aba aberta durante um deploy pedia um chunk ja",
+      "//3": "substituido, recebia o HTML do index com status 200, e o navegador",
+      "//4": "tentava ler HTML como modulo JavaScript. O erro que chegava era",
+      "//5": "'Failed to fetch dynamically imported module', que nao diz nada",
+      "//6": "sobre a causa. Com o 404, a falha passa a ser o que ela e.",
+      "source": "/assets/(.*)",
+      "destination": "/assets/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
