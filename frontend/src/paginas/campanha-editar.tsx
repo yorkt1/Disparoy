@@ -52,6 +52,18 @@ export function PaginaEditarCampanha() {
     const campanhaAtual = campanha;
     if (!campanhaAtual) return;
     try {
+      /*
+       * `agendadaPara` NÃO vai no corpo, e a ausência é proposital.
+       *
+       * Esta tela não tem campo de data: ela lia o valor da campanha e o
+       * devolvia igual. Só que o tempo passa entre carregar e salvar — uma
+       * campanha agendada para 9:11 que o operador abrisse às 9:30 era
+       * regravada com 9:11, agora no passado, e ficava esperando um horário
+       * que nunca chega (até a manutenção expirá-la, meia hora depois).
+       *
+       * O campo é opcional na API e omiti-lo preserva o valor gravado. Quem
+       * não oferece o controle não deve reescrever o dado.
+       */
       await edicao.mutateAsync({
         id,
         nome: nome.trim(),
@@ -60,7 +72,6 @@ export function PaginaEditarCampanha() {
         intervaloEntreContatos: intervaloContatos,
         intervaloEntreMensagens: intervaloMensagens,
         validarNumeros,
-        agendadaPara: campanhaAtual.agendadaPara,
       });
       mostrar({ tipo: "sucesso", titulo: "Campanha atualizada", descricao: "As alterações foram salvas." });
       navegar(`/campanhas/${id}`);

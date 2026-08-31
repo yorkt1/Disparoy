@@ -75,16 +75,34 @@ export function PaginaDetalheCampanha() {
     campanha.status === "pausada_por_canal" ||
     campanha.status === "rascunho";
 
+  /*
+   * Rascunho não se "retoma": ele nunca começou.
+   *
+   * A ação é a mesma para os dois — `retomar` põe a campanha em andamento —,
+   * mas o rótulo era o de quem volta de uma pausa. Quem acabava de clicar em
+   * "Reenviar" caía numa cópia em rascunho, lia "Retomar", não reconhecia
+   * aquilo como "mandar esta campanha" e concluía que o reenvio não funcionou.
+   * O botão certo estava ali, com o nome do outro caso.
+   */
+  const ehRascunho = campanha.status === "rascunho";
+
   async function alterar(acao: "pausar" | "retomar") {
     try {
       await execucao.mutateAsync({ id, acao });
       mostrar({
         tipo: "info",
-        titulo: acao === "pausar" ? "Campanha pausada" : "Campanha retomada",
+        titulo:
+          acao === "pausar"
+            ? "Campanha pausada"
+            : ehRascunho
+              ? "Disparo iniciado"
+              : "Campanha retomada",
         descricao:
           acao === "pausar"
             ? "Os envios ainda na fila não serão processados."
-            : "O worker retoma de onde parou.",
+            : ehRascunho
+              ? "O worker começou a enfileirar os contatos."
+              : "O worker retoma de onde parou.",
       });
     } catch (e) {
       mostrar({
@@ -257,7 +275,7 @@ export function PaginaDetalheCampanha() {
                 ) : (
                   <Play aria-hidden className="size-4" />
                 )}
-                {podePausar ? "Pausar" : "Retomar"}
+                {podePausar ? "Pausar" : ehRascunho ? "Iniciar disparo" : "Retomar"}
               </Botao>
             ) : null}
           </div>
