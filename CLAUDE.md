@@ -93,3 +93,20 @@ desenvolvimento o Vite faz proxy de `/api` para `localhost:3333`.
 
 O `vercel.json` carrega os cabeçalhos de segurança (CSP, HSTS,
 `Permissions-Policy`). Ao adicionar origem externa, ajuste a CSP junto.
+
+**Nada de comentário no `vercel.json`.** O schema da Vercel reprova propriedade
+extra dentro de `rewrites`/`headers`, e o truque de usar chaves `"//"` derruba o
+build inteiro com `should NOT have additional property`. O que precisar ser
+explicado sobre o deploy é explicado aqui.
+
+Os três `rewrites`, em ordem, e o porquê do do meio:
+
+1. `/api/(.*)` → API no Render.
+2. `/assets/(.*)` → ele mesmo. **Existe para que asset inexistente dê 404**, em
+   vez de cair no `index.html`. Sem ela, a aba aberta durante um deploy pedia um
+   chunk já substituído, recebia o HTML do index com status 200, e o navegador
+   tentava ler HTML como módulo JavaScript. O erro que chegava era `Failed to
+   fetch dynamically imported module`, que não diz nada sobre a causa. Com o
+   404, a falha passa a ser o que ela é — e o `vigiarVersaoNova()` do
+   `main.tsx` recarrega a página antes de o operador ver qualquer coisa.
+3. `/(.*)` → `index.html`, para as rotas do SPA.
