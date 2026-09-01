@@ -1,18 +1,27 @@
 
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarClock, Plus, Shuffle, Zap } from "lucide-react";
+import { CalendarClock, Plus, Shuffle, Trash2, Zap } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { Campo, CaixaSelecao } from "@/components/ui/campos";
 import { Etapa, type EstadoEtapa } from "@/components/ui/etapa";
 import { useToast } from "@/components/ui/toast";
-import { LIMITES } from "@disparoy/dominio";
+import { LIMITES, duracaoEstimadaSegundos, contatosQueCabemNoDia, fechaNoDia } from "@disparoy/dominio";
 
-import type { Canal, Spintax } from "@disparoy/dominio";
+import type { Canal, IntervaloAleatorio, Spintax } from "@disparoy/dominio";
 import { cn, formatarNumero } from "@/lib/formato";
 import { ErroApi } from "@/lib/api";
 import { useCriarCampanha } from "@/hooks/consultas";
-import { useFormularioCampanha } from "@/hooks/use-formulario-campanha";
+import {
+  contatosPorDia,
+  HORA_PADRAO_DO_DIA,
+  paraValorLocal,
+  proximoDiaDeDisparo,
+  publicoAchatado,
+  useFormularioCampanha,
+  type AcaoCampanha,
+  type DiaDeDisparo,
+} from "@/hooks/use-formulario-campanha";
 import { EditorMensagem } from "./editor-mensagem";
 import { SeletorPublico } from "./seletor-publico";
 import { PainelResumo } from "./painel-resumo";
@@ -43,11 +52,16 @@ export function FormularioCampanha({
         sequencia: estado.sequencia,
         intervaloEntreContatos: estado.intervaloEntreContatos,
         intervaloEntreMensagens: estado.intervaloEntreMensagens,
+        cadenciaAutomatica: estado.cadenciaAutomatica,
         validarNumeros: estado.validarNumeros,
-        publico: estado.publico,
+        // Os dias vão achatados num público só, cada contato carregando o seu
+        // `liberarEm` — é a forma que a API e o banco entendem.
+        publico: publicoAchatado(estado.dias),
         // O <input datetime-local> devolve hora local; a API só aceita ISO com
         // fuso, senão um agendamento das 9h viraria 9h UTC (6h em Brasília).
-        agendadaPara: estado.agendadaPara ? new Date(estado.agendadaPara).toISOString() : null,
+        agendadaPara: estado.dias[0].agendadaPara
+          ? new Date(estado.dias[0].agendadaPara).toISOString()
+          : null,
         acao,
       });
 
@@ -173,6 +187,8 @@ export function FormularioCampanha({
                   descricao="Sorteado a cada contato da fila."
                   valor={estado.intervaloEntreContatos}
                   aoMudar={(valor) => despachar({ tipo: "intervaloContatos", valor })}
+                  automatico={estado.cadenciaAutomatica}
+                  aoMudarAutomatico={(valor) => despachar({ tipo: "cadenciaAutomatica", valor })}
                 />
                 <ControleIntervalo
                   titulo="Intervalo entre mensagens"
@@ -201,39 +217,39 @@ export function FormularioCampanha({
             <PreviaConversa
               sequencia={estado.sequencia}
               variacoes={variacoes}
-              contatoExemplo={estado.publico[0]}
+              contatoExemplo={estado.dias[0].publico[0]}
             />
           </div>
         </Etapa>
 
-        {/* ---------------------------------------------------------------- */}
+        {/* ----------------------------------------------------------------
+          Quem recebe e quando eram duas etapas, e viraram uma.
+
+          Enquanto a campanha era de um disparo só, "o público" e "a data" eram
+          perguntas independentes. Com a semana dividida em dias, cada planilha
+          TEM uma data e cada data TEM uma planilha — separá-las obrigaria o
+          operador a montar a mesma lista de dias em dois lugares e a mantê-los
+          casados de cabeça.
+        ------------------------------------------------------------------- */}
         <Etapa
           numero={4}
-          titulo="Quem vai receber"
-          descricao="Por planilha ou colando os números. Eles ficam só nesta campanha."
-          estado={marcar(veredito.contatos, estado.publico.length > 0)}
+          titulo="Quando e para quem"
+          descricao="Por planilha ou colando os números. Os contatos ficam só nesta campanha."
+          estado={marcar(
+            veredito.contatos && veredito.agendamento,
+            veredito.contatosElegiveis > 0,
+          )}
           resumo={
-            estado.publico.length > 0
-              ? `${formatarNumero(veredito.contatosElegiveis)} contatos`
+            veredito.contatosElegiveis > 0
+              ? `${formatarNumero(veredito.contatosElegiveis)} contatos` +
+                (estado.dias.length > 1 ? ` em ${estado.dias.length} dias` : "")
               : undefined
           }
         >
-          <SeletorPublico
-            publico={estado.publico}
-            aoMudar={(contatos) => despachar({ tipo: "publico", contatos })}
-          />
-        </Etapa>
-
-        {/* ---------------------------------------------------------------- */}
-        <Etapa
-          numero={5}
-          titulo="Quando enviar"
-          estado={veredito.agendamento ? "preenchida" : "erro"}
-          resumo={estado.agendadaPara ? "Agendado" : "Envio imediato"}
-        >
           <AgendamentoEnvio
-            valor={estado.agendadaPara}
-            aoMudar={(valor) => despachar({ tipo: "agendamento", valor })}
+            dias={estado.dias}
+            faixa={estado.intervaloEntreContatos}
+            despachar={despachar}
           />
         </Etapa>
       </div>
@@ -250,46 +266,187 @@ export function FormularioCampanha({
   );
 }
 
+/**
+ * Quando a campanha sai, e com que planilha em cada dia.
+ *
+ * "Enviar agora" é um dia sem data. "Agendar" abre a lista, e é aí que a
+ * campanha pode cobrir a semana: um bloco por dia, com data e planilha lado a
+ * lado, e um botão que acrescenta o próximo dia já datado.
+ *
+ * Existir num lugar só é o ponto. A alternativa — escolher as datas aqui e as
+ * planilhas noutra etapa — deixaria o operador casando lista com dia de
+ * cabeça, e o erro que isso produz (planilha da sexta no bloco da terça) não
+ * aparece em lugar nenhum até as mensagens saírem.
+ */
 function AgendamentoEnvio({
-  valor,
-  aoMudar,
+  dias,
+  faixa,
+  despachar,
 }: {
-  valor: string | null;
-  aoMudar: (v: string | null) => void;
+  dias: DiaDeDisparo[];
+  faixa: IntervaloAleatorio;
+  despachar: React.Dispatch<AcaoCampanha>;
 }) {
-  const agendado = valor !== null;
+  const agendado = dias[0].agendadaPara !== null;
   const minimo = React.useMemo(() => paraValorLocal(new Date(Date.now() + 5 * 60_000)), []);
+  const porDia = contatosPorDia(dias);
+
+  /** Primeira data possível: 10h do próximo dia que não seja domingo. */
+  function primeiraData(): string {
+    const d = proximoDiaDeDisparo(new Date());
+    d.setHours(HORA_PADRAO_DO_DIA, 0, 0, 0);
+    return paraValorLocal(d);
+  }
 
   return (
     <div className="flex flex-col gap-3">
       <div className="grid gap-2.5 sm:grid-cols-2">
         <OpcaoEnvio
           selecionada={!agendado}
-          onClick={() => aoMudar(null)}
+          onClick={() => despachar({ tipo: "agendamento", valor: null })}
           icone={<Zap className="size-4" />}
           titulo="Enviar agora"
           descricao="A fila começa assim que você confirmar."
         />
         <OpcaoEnvio
           selecionada={agendado}
-          onClick={() => aoMudar(valor ?? paraValorLocal(new Date(Date.now() + 3600_000)))}
+          onClick={() =>
+            despachar({ tipo: "agendamento", valor: dias[0].agendadaPara ?? primeiraData() })
+          }
           icone={<CalendarClock className="size-4" />}
           titulo="Agendar"
-          descricao="Escolha data e hora do início."
+          descricao="Escolha o dia, ou divida a lista pela semana."
         />
       </div>
 
+      <ul className="flex flex-col gap-3">
+        {dias.map((dia, i) => (
+          <BlocoDoDia
+            key={dia.id}
+            dia={dia}
+            indice={i}
+            contatos={porDia[i]}
+            faixa={faixa}
+            agendado={agendado}
+            minimo={minimo}
+            podeRemover={dias.length > 1}
+            despachar={despachar}
+          />
+        ))}
+      </ul>
+
       {agendado ? (
-        <Campo
-          type="datetime-local"
-          rotulo="Início do disparo"
-          value={valor ?? ""}
-          min={minimo}
-          onChange={(e) => aoMudar(e.target.value || null)}
-          className="max-w-64"
-        />
+        <div className="flex flex-wrap items-center gap-3">
+          <Botao
+            tamanho="sm"
+            variante="secundario"
+            onClick={() => despachar({ tipo: "adicionarDia" })}
+            // Trinta dias é o teto do schema. Chegar nele é sinal de que a
+            // lista deveria ser outra campanha, não mais um dia nesta.
+            disabled={dias.length >= 30}
+          >
+            <Plus aria-hidden className="size-3.5" />
+            Adicionar dia
+          </Botao>
+
+          {dias.length > 1 ? (
+            <span className="text-xs text-tinta-3">
+              Cada dia começa no horário marcado. Domingo é pulado.
+            </span>
+          ) : null}
+        </div>
       ) : null}
     </div>
+  );
+}
+
+/** Um dia: a data, a planilha dele e quanto tempo essa leva leva. */
+function BlocoDoDia({
+  dia,
+  indice,
+  contatos,
+  faixa,
+  agendado,
+  minimo,
+  podeRemover,
+  despachar,
+}: {
+  dia: DiaDeDisparo;
+  indice: number;
+  contatos: number;
+  faixa: IntervaloAleatorio;
+  agendado: boolean;
+  minimo: string;
+  podeRemover: boolean;
+  despachar: React.Dispatch<AcaoCampanha>;
+}) {
+  const horas = duracaoEstimadaSegundos(contatos, faixa) / 3600;
+  const cabe = fechaNoDia(contatos, faixa);
+
+  return (
+    <li className="rounded-lg border border-borda-forte bg-superficie-2 p-3.5">
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <span className="text-xs font-medium text-tinta">
+          {agendado ? `Dia ${indice + 1}` : "Contatos"}
+        </span>
+
+        {agendado ? (
+          <Campo
+            type="datetime-local"
+            aria-label={`Data e hora do dia ${indice + 1}`}
+            value={dia.agendadaPara ?? ""}
+            min={minimo}
+            onChange={(e) =>
+              indice === 0
+                ? despachar({ tipo: "agendamento", valor: e.target.value || null })
+                : despachar({ tipo: "dataDoDia", id: dia.id, valor: e.target.value || null })
+            }
+            className="max-w-56"
+          />
+        ) : null}
+
+        {contatos > 0 ? (
+          <span className="tabular text-xs text-tinta-3">
+            {formatarNumero(contatos)} contatos ·{" "}
+            {horas < 1 ? `≈${Math.round(horas * 60)} min` : `≈${horas.toFixed(1)} h`}
+          </span>
+        ) : null}
+
+        {podeRemover && indice > 0 ? (
+          <Botao
+            tamanho="icone"
+            variante="fantasma"
+            onClick={() => despachar({ tipo: "removerDia", id: dia.id })}
+            aria-label={`Remover dia ${indice + 1}`}
+            className="ml-auto hover:bg-critico/15 hover:text-critico"
+          >
+            <Trash2 aria-hidden className="size-3.5" />
+          </Botao>
+        ) : null}
+      </div>
+
+      <SeletorPublico
+        publico={dia.publico}
+        aoMudar={(contatos) => despachar({ tipo: "publicoDoDia", id: dia.id, contatos })}
+      />
+
+      {/*
+        O aviso que evita o erro caro.
+
+        A 90–240 s por contato, um dia comporta algo entre 200 e 350 pessoas —
+        não mil. Sem este número na tela, o operador divide 3 mil contatos em
+        seis dias de 500, nenhum dia fecha, as sobras se empilham, e ele só
+        descobre na quarta-feira. Dizer QUANTOS cabem torna o aviso acionável:
+        "não fecha no dia" sozinho não diz o que fazer.
+      */}
+      {contatos > 0 && !cabe ? (
+        <p className="mt-2 text-xs text-aviso">
+          Essa leva leva ≈{horas.toFixed(0)} h e não fecha no dia — o resto escorre para o
+          seguinte. Nesse ritmo cabem ~{formatarNumero(contatosQueCabemNoDia(faixa))} contatos por
+          dia.
+        </p>
+      ) : null}
+    </li>
   );
 }
 
@@ -327,10 +484,4 @@ function OpcaoEnvio({
       </span>
     </button>
   );
-}
-
-/** Data no formato aceito por <input type="datetime-local"> (hora local). */
-function paraValorLocal(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }

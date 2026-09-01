@@ -40,6 +40,10 @@ export function PainelResumo({
   const oficiais = selecionados.filter((c) => c.tipoConexao === "api_oficial");
   const porQr = selecionados.filter((c) => c.tipoConexao === "qrcode");
 
+  // O dia 1 É o início da campanha: a data dele é o `agendadaPara` que a API
+  // recebe, e `null` nele significa envio imediato.
+  const inicio = estado.dias[0].agendadaPara;
+
   const mensagensPorContato = estado.sequencia.length;
   const totalMensagens = veredito.contatosElegiveis * mensagensPorContato;
   const tarifadas = oficiais.length > 0 ? veredito.contatosElegiveis : 0;
@@ -79,10 +83,22 @@ export function PainelResumo({
           <Linha
             rotulo="Envio"
             valor={
-              estado.agendadaPara ? formatarDataHora(new Date(estado.agendadaPara).toISOString()) : "Imediato"
+              inicio ? formatarDataHora(new Date(inicio).toISOString()) : "Imediato"
             }
-            icone={estado.agendadaPara ? <Clock className="size-3.5" /> : undefined}
+            icone={inicio ? <Clock className="size-3.5" /> : undefined}
           />
+          {/*
+            Só aparece quando há mais de um dia: numa campanha comum a linha
+            seria sempre "1 dia", que não informa nada e ocupa espaço num painel
+            que o operador lê de relance antes de disparar.
+          */}
+          {estado.dias.length > 1 ? (
+            <Linha
+              rotulo="Dividida em"
+              valor={`${estado.dias.length} dias`}
+              icone={<Clock className="size-3.5" />}
+            />
+          ) : null}
         </dl>
 
         {selecionados.length > 0 ? (
@@ -174,7 +190,7 @@ export function PainelResumo({
             onClick={aoDisparar}
           >
             {enviando === "disparo" ? null : <Rocket aria-hidden className="size-4" />}
-            {estado.agendadaPara ? "Agendar disparo" : "Disparar agora"}
+            {inicio ? "Agendar disparo" : "Disparar agora"}
           </Botao>
 
           <Botao

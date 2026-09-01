@@ -1,8 +1,8 @@
 import * as React from "react";
 import {
-  INTERVALO_PADRAO_ENTRE_CONTATOS,
   INTERVALO_PADRAO_ENTRE_MENSAGENS,
   LIMITES,
+  intervaloSugerido,
 } from "@disparoy/dominio";
 import type { Canal, IntervaloAleatorio, MensagemSequencia } from "@disparoy/dominio";
 import { gerarId } from "@/lib/formato";
@@ -21,17 +21,43 @@ export interface EstadoCampanha {
   sequencia: MensagemSequencia[];
   intervaloEntreContatos: IntervaloAleatorio;
   intervaloEntreMensagens: IntervaloAleatorio;
+  /**
+   * A faixa entre contatos é calculada pelo tamanho da leva, não digitada.
+   *
+   * Padrão ligado: a 90–240 s fixos de antes, uma leva de 40 pessoas era
+   * tratada com a mesma desconfiança de uma de 3 mil. Quem precisa de controle
+   * fino desliga e escreve os números — testar com 2 contatos a 90 s são três
+   * minutos parado só para ver se a mensagem saiu certa.
+   */
+  cadenciaAutomatica: boolean;
   validarNumeros: boolean;
   /**
-   * O público da campanha, vindo de planilha ou colagem.
+   * Os dias do disparo. SEMPRE ao menos um.
+   *
+   * Substituiu o par `publico` + `agendadaPara`: uma campanha passou a poder
+   * cobrir a semana, com uma planilha por dia. O dia 1 é a própria campanha —
+   * a data dele é o `agendadaPara` que a API recebe, e `null` nele significa
+   * "enviar agora". Os demais viram `liberarEm` nos contatos.
+   *
+   * Um array e não um `publico` solto mais uma lista de datas: com duas
+   * estruturas casadas por índice, o dia errado num contato é a mensagem
+   * saindo na terça para quem estava marcado para sexta.
+   */
+  dias: DiaDeDisparo[];
+}
+
+export interface DiaDeDisparo {
+  id: string;
+  /** Valor cru do <input type="datetime-local">; null só no dia 1, em envio imediato. */
+  agendadaPara: string | null;
+  /**
+   * O público daquele dia, vindo de planilha ou colagem.
    *
    * Substituiu `listaId`: não há mais cadastro de contatos, então a lista de
    * destino nasce e morre com a campanha. O telefone já chega normalizado em
    * E.164 pelo domínio.
    */
   publico: ContatoPublico[];
-  /** Valor cru do <input type="datetime-local">; null = envio imediato. */
-  agendadaPara: string | null;
 }
 
 export interface ContatoPublico {
@@ -39,6 +65,15 @@ export interface ContatoPublico {
   nome: string;
   variaveis: Record<string, string>;
 }
+
+/**
+ * Hora em que um dia de disparo começa, quando ninguém escolheu outra.
+ *
+ * 10h é o pedido do operador, e tem lógica: cedo o bastante para a leva do dia
+ * caber antes da noite, tarde o bastante para não chegar antes de a pessoa
+ * abrir o WhatsApp.
+ */
+export const HORA_PADRAO_DO_DIA = 10;
 
 export type AcaoCampanha =
   | { tipo: "nome"; valor: string }
@@ -49,8 +84,12 @@ export type AcaoCampanha =
   | { tipo: "atualizarMensagem"; id: string; campos: Partial<MensagemSequencia> }
   | { tipo: "intervaloContatos"; valor: IntervaloAleatorio }
   | { tipo: "intervaloMensagens"; valor: IntervaloAleatorio }
+  | { tipo: "cadenciaAutomatica"; valor: boolean }
   | { tipo: "validarNumeros"; valor: boolean }
-  | { tipo: "publico"; contatos: ContatoPublico[] }
+  | { tipo: "publicoDoDia"; id: string; contatos: ContatoPublico[] }
+  | { tipo: "dataDoDia"; id: string; valor: string | null }
+  | { tipo: "adicionarDia" }
+  | { tipo: "removerDia"; id: string }
   | { tipo: "agendamento"; valor: string | null };
 
 /**
@@ -63,12 +102,104 @@ export function estadoInicial(canais: Canal[] = []): EstadoCampanha {
     nome: "",
     canaisIds: canais.length === 1 ? [canais[0].id] : [],
     sequencia: [{ id: gerarId("msg"), tipo: "texto", corpo: "" }],
-    intervaloEntreContatos: { ...INTERVALO_PADRAO_ENTRE_CONTATOS },
+    // Público vazio ainda: a faixa nasce no piso e sobe conforme a planilha
+    // entra. `cadenciaAutomatica` liga por padrão — ver o campo.
+    intervaloEntreContatos: intervaloSugerido(0),
     intervaloEntreMensagens: { ...INTERVALO_PADRAO_ENTRE_MENSAGENS },
+    cadenciaAutomatica: true,
     validarNumeros: true,
-    publico: [],
-    agendadaPara: null,
+    dias: [diaVazio(null)],
   };
+}
+
+function diaVazio(agendadaPara: string | null): DiaDeDisparo {
+  return { id: gerarId("dia"), agendadaPara, publico: [] };
+}
+
+/** Data no formato do <input type="datetime-local"> (hora local, sem fuso). */
+export function paraValorLocal(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/**
+ * O próximo dia de disparo depois deste — pulando domingo.
+ *
+ * Domingo fica de fora por decisão do operador: promoção que chega no domingo
+ * é a que mais rende pedido de saída. Sábado continua valendo, então uma
+ * semana de campanha tem seis dias, não cinco.
+ *
+ * `setDate` com valor acima do fim do mês vira o mês sozinho — 31/12 + 1 dá
+ * 01/01 do ano seguinte, sem nenhuma conta de calendário aqui.
+ */
+export function proximoDiaDeDisparo(base: Date): Date {
+  const d = new Date(base);
+  d.setDate(d.getDate() + 1);
+  if (d.getDay() === 0) d.setDate(d.getDate() + 1);
+  return d;
+}
+
+/**
+ * O público inteiro da campanha, achatado e sem repetido, com o dia de cada um.
+ *
+ * Deduplica ENTRE os dias, e não só dentro de cada um: o mesmo número na
+ * planilha de segunda e na de quinta receberia duas vezes, e mensagem repetida
+ * em disparo é o que faz o contato denunciar o número. Vence a ocorrência mais
+ * antiga — receber mais cedo é o desfecho seguro, e é a mesma regra que o
+ * `distinct on` da `popular_publico_da_campanha` aplica do lado do banco.
+ *
+ * O dia 1 sai com `liberarEm: null` porque quem manda nele é o `agendadaPara`
+ * da campanha; duplicar a data nos dois lugares seria criar a chance de eles
+ * discordarem.
+ */
+export function publicoAchatado(
+  dias: DiaDeDisparo[],
+): (ContatoPublico & { liberarEm: string | null })[] {
+  const vistos = new Set<string>();
+  const saida: (ContatoPublico & { liberarEm: string | null })[] = [];
+
+  dias.forEach((dia, indice) => {
+    for (const contato of dia.publico) {
+      if (vistos.has(contato.telefone)) continue;
+      vistos.add(contato.telefone);
+      saida.push({
+        ...contato,
+        liberarEm:
+          indice === 0 || !dia.agendadaPara
+            ? null
+            : new Date(dia.agendadaPara).toISOString(),
+      });
+    }
+  });
+
+  return saida;
+}
+
+/** Quantos contatos cada dia realmente dispara, já descontado o repetido. */
+export function contatosPorDia(dias: DiaDeDisparo[]): number[] {
+  const vistos = new Set<string>();
+  return dias.map((dia) => {
+    let quantos = 0;
+    for (const c of dia.publico) {
+      if (vistos.has(c.telefone)) continue;
+      vistos.add(c.telefone);
+      quantos += 1;
+    }
+    return quantos;
+  });
+}
+
+/**
+ * A faixa que a campanha inteira usa, tirada do MAIOR dia.
+ *
+ * A campanha guarda um intervalo só, mas os dias podem ter tamanhos bem
+ * diferentes. Usar o maior é o lado seguro: dimensionar pela média deixaria o
+ * dia mais pesado — justamente o de maior risco para o número — andando rápido
+ * demais. O custo é os dias menores irem mais devagar do que precisariam, que
+ * não machuca ninguém.
+ */
+export function cadenciaDosDias(dias: DiaDeDisparo[]): IntervaloAleatorio {
+  return intervaloSugerido(Math.max(0, ...contatosPorDia(dias)));
 }
 
 function mover<T>(lista: T[], de: number, para: number): T[] {
@@ -117,35 +248,109 @@ export function reducer(estado: EstadoCampanha, acao: AcaoCampanha): EstadoCampa
       };
 
     case "intervaloContatos":
-      return { ...estado, intervaloEntreContatos: acao.valor };
+      // Escrever à mão desliga o automático: os dois juntos fariam o número
+      // recém-digitado ser sobrescrito no próximo carregamento de planilha.
+      return { ...estado, intervaloEntreContatos: acao.valor, cadenciaAutomatica: false };
 
     case "intervaloMensagens":
       return { ...estado, intervaloEntreMensagens: acao.valor };
 
+    case "cadenciaAutomatica":
+      return {
+        ...estado,
+        cadenciaAutomatica: acao.valor,
+        // Religar recalcula na hora, senão a tela seguiria mostrando a faixa
+        // digitada com o rótulo "automático" em cima dela.
+        intervaloEntreContatos: acao.valor
+          ? cadenciaDosDias(estado.dias)
+          : estado.intervaloEntreContatos,
+      };
+
     case "validarNumeros":
       return { ...estado, validarNumeros: acao.valor };
 
-    case "publico": {
+    case "publicoDoDia": {
       // Deduplica por telefone aqui, e não só no banco: o operador precisa ver
       // o número REAL de destinatários antes de disparar, não descobrir depois
       // que 300 das 1000 linhas da planilha eram repetidas.
       const vistos = new Set<string>();
-      return {
-        ...estado,
-        publico: acao.contatos.filter((c) => {
-          if (vistos.has(c.telefone)) return false;
-          vistos.add(c.telefone);
-          return true;
-        }),
-      };
+      const limpo = acao.contatos.filter((c) => {
+        if (vistos.has(c.telefone)) return false;
+        vistos.add(c.telefone);
+        return true;
+      });
+
+      const dias = estado.dias.map((d) => (d.id === acao.id ? { ...d, publico: limpo } : d));
+      return { ...estado, dias, ...recalcularCadencia(estado, dias) };
     }
 
-    case "agendamento":
-      return { ...estado, agendadaPara: acao.valor };
+    case "dataDoDia": {
+      const dias = estado.dias.map((d) =>
+        d.id === acao.id ? { ...d, agendadaPara: acao.valor } : d,
+      );
+      return { ...estado, dias };
+    }
+
+    case "adicionarDia": {
+      const ultimo = estado.dias[estado.dias.length - 1];
+      /*
+       * A data do novo dia sai do último, não de hoje.
+       *
+       * Clicar cinco vezes precisa dar cinco dias seguidos. Partindo de hoje, o
+       * segundo clique devolveria a mesma data do primeiro e o operador
+       * montaria a semana inteira em cima de um dia só, sem nada na tela
+       * dizendo isso — os dois campos mostrariam a mesma data, que é fácil de
+       * ler como "ainda não atualizou".
+       */
+      const base = ultimo?.agendadaPara ? new Date(ultimo.agendadaPara) : comHoraPadrao(new Date());
+      const proxima = proximoDiaDeDisparo(base);
+      const dias = [...estado.dias, diaVazio(paraValorLocal(proxima))];
+      return { ...estado, dias, ...recalcularCadencia(estado, dias) };
+    }
+
+    case "removerDia": {
+      // O dia 1 é a própria campanha: sem ele não há o que disparar, e a data
+      // dele é o `agendadaPara` que a API recebe.
+      if (estado.dias.length <= 1) return estado;
+      const dias = estado.dias.filter((d) => d.id !== acao.id);
+      if (dias.length === estado.dias.length) return estado;
+      return { ...estado, dias, ...recalcularCadencia(estado, dias) };
+    }
+
+    case "agendamento": {
+      /*
+       * Voltar para "enviar agora" colapsa a campanha num dia só.
+       *
+       * Dias 2 em diante só existem com data, e a campanha imediata não tem
+       * nenhuma. Guardá-los escondidos seria pior: o operador desmarcaria o
+       * agendamento, dispararia, e as planilhas dos outros dias sairiam todas
+       * juntas na mesma hora.
+       */
+      const dias =
+        acao.valor === null
+          ? [{ ...estado.dias[0], agendadaPara: null }]
+          : estado.dias.map((d, i) => (i === 0 ? { ...d, agendadaPara: acao.valor } : d));
+      return { ...estado, dias, ...recalcularCadencia(estado, dias) };
+    }
 
     default:
       return estado;
   }
+}
+
+/** No automático, a faixa acompanha os dias; no manual, não se mexe nela. */
+function recalcularCadencia(
+  estado: EstadoCampanha,
+  dias: DiaDeDisparo[],
+): Partial<EstadoCampanha> {
+  return estado.cadenciaAutomatica ? { intervaloEntreContatos: cadenciaDosDias(dias) } : {};
+}
+
+/** A mesma data, na hora em que um dia de disparo começa por padrão. */
+function comHoraPadrao(d: Date): Date {
+  const saida = new Date(d);
+  saida.setHours(HORA_PADRAO_DO_DIA, 0, 0, 0);
+  return saida;
 }
 
 export interface VereditoEtapas {
@@ -170,7 +375,8 @@ export interface VereditoEtapas {
 }
 
 export function avaliarEtapas(estado: EstadoCampanha): VereditoEtapas {
-  const contatosElegiveis = estado.publico.length;
+  const porDia = contatosPorDia(estado.dias);
+  const contatosElegiveis = porDia.reduce((s, n) => s + n, 0);
 
   const nome = estado.nome.trim().length >= 3;
   const canais = estado.canaisIds.length > 0;
@@ -189,8 +395,32 @@ export function avaliarEtapas(estado: EstadoCampanha): VereditoEtapas {
   );
   const contatos = contatosElegiveis > 0;
 
-  const agendamentoNoFuturo =
-    !estado.agendadaPara || new Date(estado.agendadaPara).getTime() > Date.now();
+  /*
+   * Toda data preenchida tem de estar no futuro — não só a do dia 1.
+   *
+   * Dia vencido não dá erro em lugar nenhum do disparo: o contato apenas cai
+   * na primeira leva. Quem montou a semana veria o dia 4 sair na segunda,
+   * junto de tudo, sem nada explicando. É a mesma recusa que `agendadaPara`
+   * já fazia, estendida aos dias que passaram a existir.
+   */
+  const datas = estado.dias.map((d) => d.agendadaPara);
+  const agendamentoNoFuturo = datas.every((d) => !d || new Date(d).getTime() > Date.now());
+
+  /*
+   * Os dias precisam andar para frente.
+   *
+   * Editar a data do dia 2 para antes da do dia 1 é fácil de fazer sem
+   * perceber, e o resultado não é erro nenhum: as duas levas viram uma só, na
+   * data mais antiga. Uma campanha "de três dias" que sai inteira numa
+   * tarde é exatamente o que a divisão existe para evitar.
+   */
+  const emOrdem = estado.dias.every((dia, i) => {
+    if (i === 0 || !dia.agendadaPara) return true;
+    const anterior = estado.dias[i - 1].agendadaPara;
+    return !anterior || new Date(dia.agendadaPara).getTime() > new Date(anterior).getTime();
+  });
+
+  const diaVazio = porDia.some((n) => n === 0);
 
   const pendencias: string[] = [];
   if (!nome) pendencias.push("Dê um nome à campanha (mínimo 3 caracteres).");
@@ -204,15 +434,22 @@ export function avaliarEtapas(estado: EstadoCampanha): VereditoEtapas {
   if (!sequencia) pendencias.push("Há mensagens vazias na sequência.");
   if (contatosElegiveis === 0) {
     pendencias.push("Adicione os contatos por planilha ou colando os números.");
+  } else if (diaVazio) {
+    // Dia sem ninguém não quebra o disparo, mas quase sempre é planilha que
+    // ficou faltando — e o operador só descobriria no dia em que nada saiu.
+    pendencias.push(
+      `O dia ${porDia.findIndex((n) => n === 0) + 1} está sem contatos: carregue a planilha dele ou remova o dia.`,
+    );
   }
   if (!agendamentoNoFuturo) pendencias.push("A data de agendamento já passou.");
+  if (!emOrdem) pendencias.push("Cada dia precisa vir depois do anterior.");
 
   return {
     nome,
     canais,
     sequencia,
-    contatos,
-    agendamento: agendamentoNoFuturo,
+    contatos: contatos && !diaVazio,
+    agendamento: agendamentoNoFuturo && emOrdem,
     pendencias,
     prontaParaDisparo: pendencias.length === 0,
     contatosElegiveis,
