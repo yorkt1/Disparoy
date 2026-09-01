@@ -94,10 +94,24 @@ desenvolvimento o Vite faz proxy de `/api` para `localhost:3333`.
 O `vercel.json` carrega os cabeçalhos de segurança (CSP, HSTS,
 `Permissions-Policy`). Ao adicionar origem externa, ajuste a CSP junto.
 
-**Nada de comentário no `vercel.json`.** O schema da Vercel reprova propriedade
-extra dentro de `rewrites`/`headers`, e o truque de usar chaves `"//"` derruba o
-build inteiro com `should NOT have additional property`. O que precisar ser
-explicado sobre o deploy é explicado aqui.
+**São DOIS `vercel.json`: o da raiz e o de `frontend/`.** Eles se repetem quase
+inteiros (os 3 rewrites e a CSP são iguais nos dois) e diferem só no que depende
+do Root Directory configurado no projeto da Vercel — a raiz traz
+`outputDirectory: frontend/dist` e `installCommand`, o de `frontend/` traz
+`framework: "vite"` e `outputDirectory: "dist"`. **Mexeu num, mexa no outro na
+mesma edição.** Corrigir só um não conserta o deploy e dá a impressão de que o
+problema era outro: foi assim que sete deploys seguidos falharam pelo mesmo
+motivo.
+
+**Nada de comentário em nenhum dos dois.** O schema da Vercel reprova
+propriedade extra dentro de `rewrites`/`headers`, e o truque de usar chaves
+`"//"` derruba o build inteiro com `should NOT have additional property`. O que
+precisar ser explicado sobre o deploy é explicado aqui.
+
+Para conferir antes de empurrar, sem esperar o deploy: baixe
+`https://openapi.vercel.sh/vercel.json` e valide as chaves dos dois arquivos
+contra `properties.rewrites.items` e `properties.headers.items`, que têm
+`additionalProperties: false`.
 
 Os três `rewrites`, em ordem, e o porquê do do meio:
 
