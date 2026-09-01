@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import type { ContatoDaCampanha, RespostaRecebida } from "@disparoy/dominio";
+import type { ContatoDaCampanha, RespostaRecebida, StatusCampanha } from "@disparoy/dominio";
 
 /**
  * A tela em que a resposta do contato aparece — a única do painel.
@@ -18,7 +18,15 @@ import type { ContatoDaCampanha, RespostaRecebida } from "@disparoy/dominio";
 
 const { mockConsulta } = vi.hoisted(() => ({ mockConsulta: vi.fn() }));
 
-vi.mock("@/hooks/consultas", () => ({ useContatosDaCampanha: mockConsulta }));
+// Os intervalos vão junto do hook: o mock substitui o módulo INTEIRO, então
+// omitir uma constante que o componente importa derruba a suíte com "No
+// export is defined on the mock" — erro que não fala do componente nem do
+// teste, e leva um tempo até apontar para esta linha.
+vi.mock("@/hooks/consultas", () => ({
+  useContatosDaCampanha: mockConsulta,
+  INTERVALO_AO_VIVO: 20_000,
+  INTERVALO_APOS_DISPARO: 60_000,
+}));
 
 import { ListaContatosCampanha } from "./lista-contatos-campanha";
 
@@ -50,12 +58,56 @@ function comContatos(itens: ContatoDaCampanha[]) {
     isLoading: false,
     isError: false,
   });
-  return render(<ListaContatosCampanha id="camp-1" aoVivo={false} />);
+  return render(<ListaContatosCampanha id="camp-1" status="concluida" />);
+}
+
+/** Só o ritmo interessa aqui, então a lista pode vir vazia. */
+function comStatus(status: StatusCampanha) {
+  mockConsulta.mockReturnValue({ data: undefined, isLoading: true, isError: false });
+  return render(<ListaContatosCampanha id="camp-1" status={status} />);
+}
+
+/** O intervalo de atualização com que o componente chamou o hook. */
+function intervaloUsado(): number | false {
+  return mockConsulta.mock.calls.at(-1)?.[2];
 }
 
 function resposta(patch: Partial<RespostaRecebida> = {}): RespostaRecebida {
   return { texto: "pode me ligar agora?", tipo: "texto", recebidaEm: null, ...patch } as RespostaRecebida;
 }
+
+/**
+ * O ritmo da atualização automática, que é o que estava errado.
+ *
+ * `aoVivo` era `status === "em_andamento"`, então a lista parava de se
+ * atualizar no instante em que o disparo terminava — e resposta e recibo de
+ * leitura chegam DEPOIS disso, ao longo de horas. Quem lia a mensagem no
+ * celular via o painel seguir dizendo "não lido" até recarregar na mão.
+ */
+describe("atualização automática", () => {
+  it("segue atualizando depois que o disparo termina", () => {
+    comStatus("concluida");
+    expect(intervaloUsado()).toBe(60_000);
+  });
+
+  it("acompanha o painel enquanto dispara", () => {
+    comStatus("em_andamento");
+    expect(intervaloUsado()).toBe(20_000);
+  });
+
+  it("não fica buscando o que ainda não disparou", () => {
+    // Rascunho e agendada não mandaram nada e não recebem nada: pedir de novo
+    // é pedir a mesma resposta para sempre.
+    comStatus("rascunho");
+    expect(intervaloUsado()).toBe(false);
+  });
+
+  it("uma campanha pausada continua podendo receber resposta", () => {
+    // O disparo parou; a conversa de quem já recebeu, não.
+    comStatus("pausada");
+    expect(intervaloUsado()).toBe(60_000);
+  });
+});
 
 describe("ListaContatosCampanha", () => {
   it("mostra o texto da resposta, que antes só saía no CSV", () => {

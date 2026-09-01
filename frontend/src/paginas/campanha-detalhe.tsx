@@ -337,7 +337,7 @@ export function PaginaDetalheCampanha() {
             />
           </Card>
 
-          <ListaContatosCampanha id={id} aoVivo={campanha.status === "em_andamento"} />
+          <ListaContatosCampanha id={id} status={campanha.status} />
 
           <Card>
             <CardCabecalho

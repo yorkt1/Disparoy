@@ -11,6 +11,8 @@
  */
 export {
   chaves,
+  INTERVALO_AO_VIVO,
+  INTERVALO_APOS_DISPARO,
   useSaudeApi,
   useSessao,
   useEhAdmin,

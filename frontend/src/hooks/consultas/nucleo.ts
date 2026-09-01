@@ -129,6 +129,20 @@ export function useEhAdmin(): boolean {
 export const INTERVALO_AO_VIVO = 20_000;
 
 /**
+ * Ritmo de quem já disparou e agora só espera resposta e leitura.
+ *
+ * O disparo termina em minutos; as respostas chegam ao longo de horas. Uma
+ * campanha `concluida` continua recebendo — é justamente quando a lista de
+ * contatos passa a ser a tela que interessa. Buscar a cada 20 s ali seria
+ * tráfego para um número que muda uma vez por hora.
+ *
+ * O React Query não dispara `refetchInterval` com a aba fora de foco
+ * (`refetchIntervalInBackground` é `false` por padrão), então isto só roda
+ * enquanto alguém está de fato olhando.
+ */
+export const INTERVALO_APOS_DISPARO = 60_000;
+
+/**
  * Métricas do dashboard.
  *
  * `aoVivo` vem de fora porque a resposta não diz se há campanha rodando — quem

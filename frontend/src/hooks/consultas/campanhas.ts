@@ -23,14 +23,19 @@ import { chaves, useInvalidar, INTERVALO_AO_VIVO } from "./nucleo";
  * se atualiza sozinha a cada 20 s enquanto a campanha roda, o que apagaria a
  * página em que o operador estava.
  *
- * `aoVivo` acompanha o mesmo ritmo do resto do painel. É aqui que ele mais
- * importa: durante o disparo esta lista é a única tela em que dá para ver
- * resposta chegando.
+ * O `intervalo` vem pronto de quem chama, e não de um booleano `aoVivo`, por
+ * causa do bug que isto conserta: `aoVivo` era `status === "em_andamento"`, e
+ * a atualização automática MORRIA no instante em que o disparo terminava.
+ * Só que resposta e recibo de leitura chegam depois — o disparo leva minutos,
+ * a conversa leva horas. A única tela em que dá para ver resposta chegando
+ * ficava congelada exatamente quando começava a chegar, e quem lia a mensagem
+ * no celular via o painel continuar dizendo "não lido" até recarregar a página
+ * na mão.
  */
 export function useContatosDaCampanha(
   id: string,
   filtros: { pagina?: number; situacao?: string; busca?: string } = {},
-  aoVivo = false,
+  intervalo: number | false = false,
 ) {
   const p = new URLSearchParams();
   if (filtros.pagina && filtros.pagina > 1) p.set("pagina", String(filtros.pagina));
@@ -47,7 +52,7 @@ export function useContatosDaCampanha(
     // Sem isto a lista pisca vazia a cada troca de página: o React Query
     // descarta os dados anteriores enquanto busca a página nova.
     placeholderData: (anterior) => anterior,
-    refetchInterval: aoVivo ? INTERVALO_AO_VIVO : false,
+    refetchInterval: intervalo,
   });
 }
 

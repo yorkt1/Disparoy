@@ -5,13 +5,14 @@ import type {
   RespostaRecebida,
   ResumoSituacao,
   SituacaoContato,
+  StatusCampanha,
   TipoResposta,
 } from "@disparoy/dominio";
 import { Card, CardCabecalho, EstadoVazio, Separador } from "@/components/ui/primitivos";
 import { Paginacao } from "@/components/ui/tabela";
 import { Carregando } from "@/components/ui/estados";
 import { ROTULO_SITUACAO, SeloSituacao } from "./selo-status";
-import { useContatosDaCampanha } from "@/hooks/consultas";
+import { INTERVALO_AO_VIVO, INTERVALO_APOS_DISPARO, useContatosDaCampanha } from "@/hooks/consultas";
 import { cn, formatarDataHora, formatarNumero, formatarTelefone } from "@/lib/formato";
 
 /**
@@ -44,7 +45,26 @@ const FILTROS: (SituacaoContato | "todas")[] = [
   "pendente",
 ];
 
-export function ListaContatosCampanha({ id, aoVivo }: { id: string; aoVivo: boolean }) {
+/**
+ * De quanto em quanto tempo a lista se atualiza sozinha, pelo status da
+ * campanha.
+ *
+ * A pergunta não é "a campanha está rodando?" e sim "ainda pode chegar coisa
+ * nova nesta tela?" — e as duas têm respostas diferentes. Enquanto dispara,
+ * mudam situação e contagem, então vale o ritmo do resto do painel. Depois que
+ * termina, continuam chegando resposta e recibo de leitura, durante horas: uma
+ * campanha `concluida` é o caso em que esta lista MAIS importa, e era
+ * exatamente onde a atualização automática estava desligada.
+ *
+ * `rascunho` e `agendada` não disparam nada e não recebem nada — ali buscar
+ * de novo é pedir a mesma resposta para sempre.
+ */
+function intervaloPara(status: StatusCampanha): number | false {
+  if (status === "rascunho" || status === "agendada") return false;
+  return status === "em_andamento" ? INTERVALO_AO_VIVO : INTERVALO_APOS_DISPARO;
+}
+
+export function ListaContatosCampanha({ id, status }: { id: string; status: StatusCampanha }) {
   const [situacao, setSituacao] = React.useState<SituacaoContato | "todas">("todas");
   const [busca, setBusca] = React.useState("");
   const [pagina, setPagina] = React.useState(1);
@@ -60,7 +80,11 @@ export function ListaContatosCampanha({ id, aoVivo }: { id: string; aoVivo: bool
     return () => clearTimeout(t);
   }, [busca]);
 
-  const consulta = useContatosDaCampanha(id, { pagina, situacao, busca: buscaAplicada }, aoVivo);
+  const consulta = useContatosDaCampanha(
+    id,
+    { pagina, situacao, busca: buscaAplicada },
+    intervaloPara(status),
+  );
 
   const dados = consulta.data;
   const itens = dados?.itens ?? [];
