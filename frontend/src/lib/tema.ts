@@ -29,6 +29,26 @@ export function definirTema(tema: Tema): void {
     // Sem persistência a escolha vale só nesta aba. É melhor que recusar a
     // troca: o operador vê o que pediu, mesmo que não sobreviva ao F5.
   }
+
+  for (const avisar of OUVINTES) avisar();
+}
+
+/**
+ * Quem precisa saber que o tema mudou.
+ *
+ * O tema é trocado em dois lugares — o atalho no menu de perfil e o card em
+ * Configurações — e os dois ficam montados ao mesmo tempo quando a tela aberta
+ * é a de Configurações. Sem esta notificação, trocar pelo menu deixava o card
+ * marcando a opção antiga: a tela inteira mudava de cor e o único componente
+ * que existe para dizer qual é o tema continuava afirmando o contrário.
+ *
+ * O DOM (`data-tema`) segue sendo a verdade; isto só avisa quem depende dela.
+ */
+const OUVINTES = new Set<() => void>();
+
+export function assinarTema(avisar: () => void): () => void {
+  OUVINTES.add(avisar);
+  return () => OUVINTES.delete(avisar);
 }
 
 /** Igual ao `--color-plano` de cada tema em `estilos.css`. */

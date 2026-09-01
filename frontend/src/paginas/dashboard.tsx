@@ -34,15 +34,6 @@ export function PaginaDashboard() {
   const primeiroNome = sessao.data?.usuario.nome.split(" ")[0] ?? "";
   const conectados = (canais.data ?? []).filter((c) => c.status === "conectado").length;
 
-  const rotuloCanais = new Map((canais.data ?? []).map((c) => [c.id, c.nome]));
-  const linhas = (campanhas.data?.itens ?? []).map((c) => ({
-    ...c,
-    canaisRotulo:
-      c.canaisIds.length === 1
-        ? (rotuloCanais.get(c.canaisIds[0]) ?? "—")
-        : `${c.canaisIds.length} canais`,
-  }));
-
   return (
     <>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
@@ -120,14 +111,28 @@ export function PaginaDashboard() {
           />
           <Separador />
           {campanhas.isLoading ? (
-            <Carregando />
+            /* Esqueleto, e não spinner: as métricas ao lado já esperam com
+               esqueleto, e dois idiomas de espera na mesma tela fazem parecer
+               que são dois tipos diferentes de carregamento. */
+            <div className="space-y-2 p-5">
+              {Array.from({ length: 4 }, (_, i) => (
+                <Esqueleto key={i} className="h-10" />
+              ))}
+            </div>
           ) : campanhas.error ? (
             <ErroCarregamento
               erro={campanhas.error}
               aoTentarNovamente={() => void campanhas.refetch()}
             />
           ) : (
-            <TabelaUltimasCampanhas campanhas={linhas} porPagina={6} />
+            <TabelaUltimasCampanhas
+              campanhas={campanhas.data?.itens ?? []}
+              canais={canais.data ?? []}
+              porPagina={6}
+              // A tabela divide a largura com o gráfico: o rótulo por extenso
+              // no botão empurra a coluna de ações para fora da vista.
+              acaoCompacta
+            />
           )}
         </Card>
       </div>

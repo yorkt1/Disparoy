@@ -1,9 +1,11 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
-import { ChevronDown, LogOut, Settings, ShieldCheck, UserRound } from "lucide-react";
+import { ChevronDown, LogOut, Moon, Settings, ShieldCheck, Sun, UserRound } from "lucide-react";
 import { ROTULO_PAPEL, type Papel } from "@disparoy/dominio";
 import { cn } from "@/lib/formato";
 import { useAuth } from "@/auth/contexto-auth";
+import { useTema } from "@/hooks/use-tema";
+import { definirTema } from "@/lib/tema";
 
 export interface PerfilSessao {
   id: string;
@@ -21,6 +23,7 @@ export function MenuPerfil({ usuario }: { usuario: PerfilSessao }) {
   const [aberto, setAberto] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const { sair } = useAuth();
+  const tema = useTema();
 
   // Fecha ao clicar fora ou apertar Esc — o menu não tem overlay próprio.
   React.useEffect(() => {
@@ -104,6 +107,32 @@ export function MenuPerfil({ usuario }: { usuario: PerfilSessao }) {
               <Settings aria-hidden className="size-4" />
               Configurações
             </Link>
+
+            {/*
+              Atalho do tema, além do card em Configurações.
+
+              Não é duplicação à toa: a escolha não é "configurar uma vez", é um
+              gesto que se repete quando a luz da sala muda. Dois cliques e uma
+              troca de tela para isso é atrito suficiente para a pessoa
+              simplesmente não trocar.
+
+              O menu NÃO fecha ao clicar — quem experimenta tema quer ver o
+              antes e o depois sem reabrir o menu a cada vez.
+            */}
+            <button
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={tema === "escuro"}
+              onClick={() => definirTema(tema === "escuro" ? "claro" : "escuro")}
+              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-tinta-2 hover:bg-superficie-2 hover:text-tinta"
+            >
+              {tema === "escuro" ? (
+                <Sun aria-hidden className="size-4" />
+              ) : (
+                <Moon aria-hidden className="size-4" />
+              )}
+              {tema === "escuro" ? "Tema claro" : "Tema escuro"}
+            </button>
           </div>
 
           <div className="border-t border-borda py-1">

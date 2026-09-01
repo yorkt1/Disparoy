@@ -1,8 +1,8 @@
-import * as React from "react";
 import { Check, Moon, Sun } from "lucide-react";
 import { Card, CardCabecalho, CardCorpo } from "@/components/ui/primitivos";
 import { cn } from "@/lib/formato";
-import { definirTema, temaAtual, type Tema } from "@/lib/tema";
+import { useTema } from "@/hooks/use-tema";
+import { definirTema, type Tema } from "@/lib/tema";
 
 const OPCOES: { valor: Tema; rotulo: string; descricao: string; icone: typeof Sun }[] = [
   {
@@ -27,16 +27,12 @@ const OPCOES: { valor: Tema; rotulo: string; descricao: string; icone: typeof Su
  * carregar a escolha junto com o login faria o tema do celular sobrescrever o
  * do notebook a cada troca.
  *
- * Por isso também não há estado global: o que manda é o atributo no <html>, e
- * o `useState` daqui existe só para marcar o botão selecionado.
+ * O que manda é o atributo no <html>; `useTema` só assina as trocas, para este
+ * card não continuar marcando a opção antiga quando alguém usa o atalho do
+ * menu de perfil com esta tela aberta.
  */
 export function SeletorTema() {
-  const [tema, setTema] = React.useState<Tema>(temaAtual);
-
-  function trocar(novo: Tema) {
-    definirTema(novo);
-    setTema(novo);
-  }
+  const tema = useTema();
 
   return (
     <Card>
@@ -55,7 +51,7 @@ export function SeletorTema() {
                 type="button"
                 role="radio"
                 aria-checked={selecionado}
-                onClick={() => trocar(opcao.valor)}
+                onClick={() => definirTema(opcao.valor)}
                 className={cn(
                   "flex items-start gap-3 rounded-card border p-4 text-left transition-colors",
                   selecionado

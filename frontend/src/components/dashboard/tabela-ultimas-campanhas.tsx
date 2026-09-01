@@ -1,26 +1,48 @@
-
+import * as React from "react";
 import { Link } from "react-router-dom";
 import { Megaphone, SquareArrowOutUpRight } from "lucide-react";
 import { Tabela, type Coluna } from "@/components/ui/tabela";
 import { BotaoLink } from "@/components/ui/botao";
 import { BarraProgresso, EstadoVazio } from "@/components/ui/primitivos";
 import { SeloCampanha } from "@/components/campanhas/selo-status";
-import type { ResumoCampanha } from "@disparoy/dominio";
-import { formatarData, formatarNumero } from "@/lib/formato";
+import type { Canal, ResumoCampanha } from "@disparoy/dominio";
+import { formatarNumero, formatarQuando } from "@/lib/formato";
 
-export interface LinhaCampanha extends ResumoCampanha {
+interface LinhaCampanha extends ResumoCampanha {
   canaisRotulo: string;
 }
 
 export function TabelaUltimasCampanhas({
   campanhas,
+  canais,
   porPagina = 6,
   comBusca = false,
+  acaoCompacta = false,
 }: {
-  campanhas: LinhaCampanha[];
+  campanhas: ResumoCampanha[];
+  canais: Canal[];
   porPagina?: number;
   comBusca?: boolean;
+  /** Só o ícone no botão de detalhes — para a tabela estreita do dashboard. */
+  acaoCompacta?: boolean;
 }) {
+  /*
+   * O rótulo do canal é montado AQUI, e não em cada tela.
+   *
+   * Estava duplicado byte a byte no dashboard e em `/campanhas`, e o defeito
+   * que isso produz é o pior tipo: corrigir num lugar deixa o outro mentindo, e
+   * as duas telas mostram a mesma tabela.
+   */
+  const nomeDoCanal = React.useMemo(
+    () => new Map(canais.map((c) => [c.id, c.nome])),
+    [canais],
+  );
+
+  const linhas: LinhaCampanha[] = React.useMemo(
+    () => campanhas.map((c) => ({ ...c, canaisRotulo: rotularCanais(c, nomeDoCanal) })),
+    [campanhas, nomeDoCanal],
+  );
+
   const colunas: Coluna<LinhaCampanha>[] = [
     {
       chave: "nome",
@@ -65,26 +87,40 @@ export function TabelaUltimasCampanhas({
       celula: (c) => <SeloCampanha status={c.status} />,
     },
     {
-      chave: "progresso",
-      titulo: "Progresso",
+      /*
+       * Barra enquanto roda; RESULTADO quando terminou.
+       *
+       * Toda campanha concluída mostrava "Concluída" e "100%" lado a lado —
+       * duas colunas dizendo a mesma coisa, e nenhuma respondendo a pergunta
+       * que o operador tem depois de um disparo, que é "deu certo?". Uma
+       * campanha pode concluir 100% com metade das mensagens falhando e ficar
+       * idêntica, na tabela, a uma que funcionou.
+       *
+       * Os números já vinham na linha (`metricas`); só não estavam sendo
+       * mostrados.
+       */
+      chave: "resultado",
+      titulo: "Resultado",
       larguraClasse: "w-44",
-      celula: (c) => (
-        <BarraProgresso
-          valor={c.progresso}
-          rotulo={`Progresso de ${c.nome}`}
-          tom={c.status === "falhou" ? "critico" : c.status === "pausada" ? "aviso" : "marca"}
-        />
-      ),
+      celula: (c) => (terminou(c.status) ? <Resultado campanha={c} /> : <Andamento campanha={c} />),
     },
     {
       chave: "data",
       titulo: "Data",
       alinhamento: "direita",
-      celula: (c) => (
-        <span className="tabular whitespace-nowrap text-tinta-3">
-          {formatarData(c.iniciadaEm ?? c.agendadaPara ?? c.criadaEm)}
-        </span>
-      ),
+      celula: (c) => {
+        const quando = c.iniciadaEm ?? c.agendadaPara ?? c.criadaEm;
+        return (
+          <span
+            className="tabular whitespace-nowrap text-tinta-3"
+            // O relativo perde a precisão que às vezes importa (comparar com o
+            // horário de um incidente). O absoluto continua a um hover.
+            title={new Date(quando).toLocaleString("pt-BR")}
+          >
+            {formatarQuando(quando)}
+          </span>
+        );
+      },
     },
     {
       /*
@@ -105,12 +141,16 @@ export function TabelaUltimasCampanhas({
       celula: (c) => (
         <BotaoLink
           to={`/campanhas/${c.id}`}
-          tamanho="sm"
+          tamanho={acaoCompacta ? "icone" : "sm"}
           variante="secundario"
           aria-label={`Ver detalhes da campanha ${c.nome}`}
+          title={acaoCompacta ? "Ver detalhes" : undefined}
         >
           <SquareArrowOutUpRight aria-hidden className="size-3.5" />
-          Ver detalhes
+          {/* No dashboard a tabela divide a largura com o gráfico: com o rótulo
+              escrito ela passa a rolar na horizontal, e a última coluna — que é
+              justamente a ação — some da vista. */}
+          {!acaoCompacta && "Ver detalhes"}
         </BotaoLink>
       ),
     },
@@ -126,7 +166,7 @@ export function TabelaUltimasCampanhas({
    * `lista-templates`, `lista-canais` e `lista-usuarios`: estado vazio fora da
    * tabela, mensagem de filtro dentro.
    */
-  if (campanhas.length === 0) {
+  if (linhas.length === 0) {
     return (
       <EstadoVazio
         icone={<Megaphone className="size-7" />}
@@ -139,7 +179,7 @@ export function TabelaUltimasCampanhas({
   return (
     <Tabela
       colunas={colunas}
-      itens={campanhas}
+      itens={linhas}
       chaveDe={(c) => c.id}
       porPagina={porPagina}
       buscaPlaceholder={comBusca ? "Buscar campanha pelo nome…" : undefined}
@@ -147,4 +187,74 @@ export function TabelaUltimasCampanhas({
       vazio="Nenhuma campanha com esse nome."
     />
   );
+}
+
+/** Terminou de vez: não há mais o que acompanhar, só o que avaliar. */
+function terminou(status: ResumoCampanha["status"]): boolean {
+  return status === "concluida" || status === "falhou";
+}
+
+function Andamento({ campanha }: { campanha: ResumoCampanha }) {
+  return (
+    <BarraProgresso
+      valor={campanha.progresso}
+      rotulo={`Progresso de ${campanha.nome}`}
+      tom={
+        campanha.status === "pausada" || campanha.status === "pausada_por_canal"
+          ? "aviso"
+          : "marca"
+      }
+    />
+  );
+}
+
+/**
+ * O que sobrou da campanha, em números.
+ *
+ * A falha vem em linha própria e em cor crítica, e só aparece quando existe:
+ * é a única parte que pede ação (reler o diagnóstico, reenviar para quem caiu).
+ * Somada na mesma linha das entregues, ela desaparecia na leitura rápida.
+ */
+function Resultado({ campanha }: { campanha: ResumoCampanha }) {
+  const { entregues, falhas, total } = campanha.metricas;
+
+  return (
+    <div className="leading-tight">
+      <span className="tabular text-xs text-tinta-2">
+        {formatarNumero(entregues)} de {formatarNumero(total)} entregues
+      </span>
+      {falhas > 0 ? (
+        <span className="tabular mt-0.5 block text-xs font-medium text-critico">
+          {formatarNumero(falhas)} {falhas === 1 ? "falhou" : "falharam"}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Qual canal disparou esta campanha.
+ *
+ * Zero canais era mostrado como "0 canais" — que se lê como "rodou sem canal
+ * nenhum", coisa que não acontece. O que houve foi o canal ter sido EXCLUÍDO
+ * depois do disparo; a campanha guarda o id, e o id não resolve mais para
+ * nome. Rascunho é o único caso em que zero significa mesmo "ainda não
+ * escolhi".
+ *
+ * O `nomes.size === 0` evita a segunda mentira: enquanto a lista de canais não
+ * chegou, nenhum id resolve, e sem esta guarda a tabela inteira afirmaria
+ * "canal removido" por um instante a cada carregamento.
+ */
+function rotularCanais(campanha: ResumoCampanha, nomes: Map<string, string>): string {
+  if (campanha.canaisIds.length === 0) {
+    return campanha.status === "rascunho" ? "nenhum escolhido" : "canal removido";
+  }
+
+  if (campanha.canaisIds.length === 1) {
+    const nome = nomes.get(campanha.canaisIds[0]);
+    if (nome) return nome;
+    return nomes.size === 0 ? "—" : "canal removido";
+  }
+
+  return `${campanha.canaisIds.length} canais`;
 }

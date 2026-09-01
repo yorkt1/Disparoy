@@ -11,22 +11,11 @@ export function PaginaCampanhas() {
   const campanhas = useCampanhas({ porPagina: 100 });
   const canais = useCanais();
 
-  const rotuloCanais = new Map((canais.data ?? []).map((c) => [c.id, c.nome]));
-  const linhas = (campanhas.data?.itens ?? []).map((c) => ({
-    ...c,
-    canaisRotulo:
-      c.canaisIds.length === 1
-        ? (rotuloCanais.get(c.canaisIds[0]) ?? "—")
-        : `${c.canaisIds.length} canais`,
-  }));
-
   return (
     <>
       <CabecalhoPagina
         titulo="Campanhas"
-        descricao={
-          campanhas.data ? `${formatarNumero(campanhas.data.total)} campanhas no total` : undefined
-        }
+        descricao={campanhas.data ? descreverTotal(campanhas.data) : undefined}
         acao={
           <BotaoLink to="/campanhas/nova" variante="primario">
             <Plus aria-hidden className="size-4" />
@@ -41,9 +30,33 @@ export function PaginaCampanhas() {
         <ErroCarregamento erro={campanhas.error} aoTentarNovamente={() => void campanhas.refetch()} />
       ) : (
         <Card className="overflow-hidden">
-          <TabelaUltimasCampanhas campanhas={linhas} porPagina={12} comBusca />
+          <TabelaUltimasCampanhas
+            campanhas={campanhas.data?.itens ?? []}
+            canais={canais.data ?? []}
+            porPagina={12}
+            comBusca
+          />
         </Card>
       )}
     </>
   );
+}
+
+/**
+ * O cabeçalho não pode prometer mais do que a tabela tem.
+ *
+ * A tela carrega um bloco de 100 e pagina no cliente, mas o total vem do
+ * servidor: com 120 campanhas o título dizia "120 no total" e o rodapé da
+ * tabela dizia "de 100" — e buscar uma campanha antiga respondia "Nenhuma
+ * campanha com esse nome", que é falso. Hoje não morde porque são poucas;
+ * mordia em silêncio assim que crescesse.
+ *
+ * Dizer o recorte é o conserto honesto que cabe aqui. O conserto completo é
+ * busca no servidor, e isso exige um parâmetro novo em `GET /campanhas` — que
+ * mora no outro repositório.
+ */
+function descreverTotal(dados: { total: number; itens: unknown[] }): string {
+  const total = formatarNumero(dados.total);
+  if (dados.total <= dados.itens.length) return `${total} campanhas no total`;
+  return `${total} campanhas no total · mostrando as ${formatarNumero(dados.itens.length)} mais recentes`;
 }
