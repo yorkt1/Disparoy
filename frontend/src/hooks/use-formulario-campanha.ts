@@ -88,7 +88,7 @@ export type AcaoCampanha =
   | { tipo: "validarNumeros"; valor: boolean }
   | { tipo: "publicoDoDia"; id: string; contatos: ContatoPublico[] }
   | { tipo: "dataDoDia"; id: string; valor: string | null }
-  | { tipo: "adicionarDia" }
+  | { tipo: "adicionarDia"; mesmoDia?: boolean }
   | { tipo: "removerDia"; id: string }
   | { tipo: "agendamento"; valor: string | null };
 
@@ -294,16 +294,31 @@ export function reducer(estado: EstadoCampanha, acao: AcaoCampanha): EstadoCampa
     case "adicionarDia": {
       const ultimo = estado.dias[estado.dias.length - 1];
       /*
-       * A data do novo dia sai do último, não de hoje.
+       * A data do novo lote sai do último, não de hoje.
        *
-       * Clicar cinco vezes precisa dar cinco dias seguidos. Partindo de hoje, o
+       * Clicar cinco vezes precisa dar cinco datas seguidas. Partindo de hoje, o
        * segundo clique devolveria a mesma data do primeiro e o operador
        * montaria a semana inteira em cima de um dia só, sem nada na tela
        * dizendo isso — os dois campos mostrariam a mesma data, que é fácil de
        * ler como "ainda não atualizou".
        */
       const base = ultimo?.agendadaPara ? new Date(ultimo.agendadaPara) : comHoraPadrao(new Date());
-      const proxima = proximoDiaDeDisparo(base);
+      /*
+       * Dois lotes no MESMO dia, algumas horas depois.
+       *
+       * Sem isto, a única forma de ter duas levas no mesmo dia era editar a
+       * data inteira do lote novo à mão — e num `datetime-local` trocar a data
+       * mantendo a hora é chato o bastante para a pessoa concluir que não dá.
+       * Foi o que aconteceu com "20:30 e 20:40 na mesma campanha": o estado
+       * sempre aceitou, a tela é que não oferecia caminho.
+       *
+       * Uma hora de distância é só o ponto de partida; a hora continua
+       * editável, que é o campo fácil de mexer.
+       */
+      const proxima = acao.mesmoDia
+        ? new Date(base.getTime() + 60 * 60 * 1000)
+        : proximoDiaDeDisparo(base);
+
       const dias = [...estado.dias, diaVazio(paraValorLocal(proxima))];
       return { ...estado, dias, ...recalcularCadencia(estado, dias) };
     }

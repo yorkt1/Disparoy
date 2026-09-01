@@ -25,6 +25,7 @@ import { Botao, BotaoLink } from "@/components/ui/botao";
 import { Carregando, ErroCarregamento } from "@/components/ui/estados";
 import { useToast } from "@/components/ui/toast";
 import { GraficoStatus } from "@/components/charts/grafico-status";
+import { RitmoDisparo } from "@/components/campanhas/ritmo-disparo";
 import { ROTULO_CONEXAO, SeloCampanha } from "@/components/campanhas/selo-status";
 import { ListaContatosCampanha } from "@/components/campanhas/lista-contatos-campanha";
 import {
@@ -336,6 +337,19 @@ export function PaginaDetalheCampanha() {
               falhas={campanha.metricas.falhas}
             />
           </Card>
+
+          {/*
+            Só enquanto dispara: parada, a campanha não tem ritmo a conferir, e
+            o cartão viraria um relógio contando desde a última mensagem de
+            ontem. O `?? []` cobre a API que ainda não devolve o campo — painel
+            e API sobem separado.
+          */}
+          {campanha.status === "em_andamento" ? (
+            <RitmoDisparo
+              ultimosEnvios={consulta.data?.ultimosEnvios ?? []}
+              faixa={campanha.intervaloEntreContatos}
+            />
+          ) : null}
 
           <ListaContatosCampanha id={id} status={campanha.status} />
 

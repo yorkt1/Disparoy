@@ -1,6 +1,6 @@
 
 import { Sparkles, TriangleAlert } from "lucide-react";
-import { CADENCIA_MAXIMA_SEGUNDOS, CADENCIA_MINIMA_SEGUNDOS, LIMITES } from "@disparoy/dominio";
+import { LIMITES } from "@disparoy/dominio";
 import type { IntervaloAleatorio } from "@disparoy/dominio";
 
 /**
@@ -12,7 +12,8 @@ export function ControleIntervalo({
   descricao,
   valor,
   aoMudar,
-  automatico,
+  sugestao,
+  seguindoSugestao,
   aoMudarAutomatico,
 }: {
   titulo: string;
@@ -20,17 +21,25 @@ export function ControleIntervalo({
   valor: IntervaloAleatorio;
   aoMudar: (v: IntervaloAleatorio) => void;
   /**
-   * A faixa saiu do tamanho da leva, e o operador não a digitou.
+   * A faixa que o tamanho da leva recomenda, quando existe uma.
    *
-   * Ausente no intervalo ENTRE MENSAGENS, que não tem modo automático: ele
-   * mede a pausa entre os passos da sequência para a MESMA pessoa, e não tem
-   * nada a ver com o tamanho do público — escalá-lo faria o contato esperar
-   * minutos entre a mensagem 1 e a 2.
+   * Ausente no intervalo ENTRE MENSAGENS: ele mede a pausa entre os passos da
+   * sequência para a MESMA pessoa, e não tem nada a ver com o tamanho do
+   * público — escalá-lo faria o contato esperar minutos entre a mensagem 1 e
+   * a 2.
    */
-  automatico?: boolean;
+  sugestao?: IntervaloAleatorio;
+  /**
+   * A faixa atual ainda é a sugerida, e acompanha o público.
+   *
+   * É um ESTADO, não um modo que tranca o campo. Os números continuam
+   * editáveis o tempo todo: a conta pelo tamanho da leva é recomendação, e
+   * transformá-la em valor fixo tirava do operador a decisão sobre o próprio
+   * disparo — que é exatamente o oposto do que ela existe para fazer.
+   */
+  seguindoSugestao?: boolean;
   aoMudarAutomatico?: (v: boolean) => void;
 }) {
-  const temAutomatico = automatico !== undefined && aoMudarAutomatico !== undefined;
   const invertido = valor.maxSegundos < valor.minSegundos;
   const arriscado = valor.minSegundos < LIMITES.intervaloMinimoRecomendadoSegundos;
 
@@ -42,40 +51,34 @@ export function ControleIntervalo({
       <h3 className="text-xs font-medium text-tinta">{titulo}</h3>
       <p className="mt-1 text-xs text-tinta-3">{descricao}</p>
 
-      {temAutomatico && automatico ? (
-        <div className="mt-3">
-          <p className="flex items-baseline gap-2">
-            <Sparkles aria-hidden className="size-3.5 shrink-0 self-center text-marca-tenue" />
-            <span className="tabular text-sm text-tinta">
-              {valor.minSegundos} a {valor.maxSegundos}s
-            </span>
-            <span className="text-xs text-tinta-3">calculado pelo tamanho da leva</span>
-          </p>
-          <p className="mt-1.5 text-xs text-tinta-3">
-            Leva pequena anda perto de {CADENCIA_MINIMA_SEGUNDOS}s; leva grande, perto de{" "}
-            {CADENCIA_MAXIMA_SEGUNDOS}s. O que queima um número é o volume do dia, não o disparo
-            em si.
-          </p>
-          <button
-            type="button"
-            onClick={() => aoMudarAutomatico(false)}
-            className="mt-2 text-xs text-marca-tenue underline underline-offset-2 hover:text-marca"
-          >
-            Ajustar à mão
-          </button>
-        </div>
-      ) : (
-        <ControleManual
-          valor={valor}
-          aoMudar={aoMudar}
-          entrada={entrada}
-          invertido={invertido}
-          arriscado={arriscado}
-          aoVoltarParaAutomatico={
-            temAutomatico ? () => aoMudarAutomatico(true) : undefined
-          }
-        />
-      )}
+      {sugestao ? (
+        <p className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs">
+          <Sparkles aria-hidden className="size-3.5 shrink-0 self-center text-marca-tenue" />
+          <span className="text-tinta-3">Sugerido para esta leva:</span>
+          <span className="tabular text-tinta-2">
+            {sugestao.minSegundos} a {sugestao.maxSegundos}s
+          </span>
+          {seguindoSugestao ? (
+            <span className="text-tinta-3">· acompanhando o tamanho do público</span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => aoMudarAutomatico?.(true)}
+              className="text-marca-tenue underline underline-offset-2 hover:text-marca"
+            >
+              usar o sugerido
+            </button>
+          )}
+        </p>
+      ) : null}
+
+      <ControleManual
+        valor={valor}
+        aoMudar={aoMudar}
+        entrada={entrada}
+        invertido={invertido}
+        arriscado={arriscado}
+      />
     </div>
   );
 }
@@ -86,14 +89,12 @@ function ControleManual({
   entrada,
   invertido,
   arriscado,
-  aoVoltarParaAutomatico,
 }: {
   valor: IntervaloAleatorio;
   aoMudar: (v: IntervaloAleatorio) => void;
   entrada: string;
   invertido: boolean;
   arriscado: boolean;
-  aoVoltarParaAutomatico?: () => void;
 }) {
   return (
     <>
@@ -140,16 +141,6 @@ function ControleManual({
           Abaixo de {LIMITES.intervaloMinimoRecomendadoSegundos}s o risco de bloqueio do número
           cresce bastante.
         </p>
-      ) : null}
-
-      {aoVoltarParaAutomatico ? (
-        <button
-          type="button"
-          onClick={aoVoltarParaAutomatico}
-          className="mt-2 text-xs text-marca-tenue underline underline-offset-2 hover:text-marca"
-        >
-          Voltar ao automático
-        </button>
       ) : null}
     </>
   );

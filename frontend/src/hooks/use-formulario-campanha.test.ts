@@ -354,6 +354,44 @@ describe("dias de disparo", () => {
     expect(estado.dias[0].agendadaPara).toBeNull();
   });
 
+  it("dois lotes no MESMO dia, que era o que não dava para fazer", () => {
+    /*
+     * O caso relatado: "criei um agendamento às 20:30 e não consegui outro às
+     * 20:40 na mesma campanha".
+     *
+     * O estado sempre aceitou — quem não oferecia caminho era a tela: o único
+     * botão pulava para o dia seguinte, e reescrever a data inteira à mão num
+     * `datetime-local` é chato o bastante para parecer impossível.
+     */
+    let estado = estadoValido({ dias: [dia(daquiADias(1), [contato("+5548991237324")])] });
+    estado = reducer(estado, { tipo: "adicionarDia", mesmoDia: true });
+
+    const [um, dois] = estado.dias.map((d) => d.agendadaPara!);
+    expect(dois.slice(0, 10)).toBe(um.slice(0, 10));
+    expect(new Date(dois).getTime()).toBeGreaterThan(new Date(um).getTime());
+  });
+
+  it("o horário do lote no mesmo dia continua editável para minutos", () => {
+    // O padrão é uma hora depois; ajustar para 20:40 é mexer só na hora, que é
+    // o campo fácil. O estado tem de aceitar a diferença de dez minutos.
+    let estado = estadoValido({
+      dias: [dia(daquiADias(1).replace("T10:00", "T20:30"), [contato("+551111111111")])],
+    });
+    estado = reducer(estado, { tipo: "adicionarDia", mesmoDia: true });
+    estado = reducer(estado, {
+      tipo: "dataDoDia",
+      id: estado.dias[1].id,
+      valor: daquiADias(1).replace("T10:00", "T20:40"),
+    });
+    estado = reducer(estado, {
+      tipo: "publicoDoDia",
+      id: estado.dias[1].id,
+      contatos: [contato("+552222222222")],
+    });
+
+    expect(avaliarEtapas(estado).prontaParaDisparo).toBe(true);
+  });
+
   it("o dia 1 não pode ser removido — ele é a campanha", () => {
     const estado = estadoValido();
     expect(reducer(estado, { tipo: "removerDia", id: estado.dias[0].id }).dias).toHaveLength(1);
@@ -470,7 +508,8 @@ describe("cadência automática", () => {
       intervaloEntreContatos: { minSegundos: 15, maxSegundos: 45 },
     });
     const depois = reducer(estado, { tipo: "cadenciaAutomatica", valor: true });
-    expect(depois.intervaloEntreContatos.minSegundos).toBeGreaterThanOrEqual(90);
+    // Um contato só: a sugestão é o piso, não os 15–45 digitados.
+    expect(depois.intervaloEntreContatos).toEqual({ minSegundos: 10, maxSegundos: 30 });
   });
 
   it("dimensiona pelo MAIOR dia, não pela média", () => {

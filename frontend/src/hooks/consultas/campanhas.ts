@@ -81,7 +81,20 @@ export function temCampanhaAndando(dados: Paginado<ResumoCampanha> | undefined):
 export function useCampanha(id: string) {
   return useQuery({
     queryKey: chaves.campanha(id),
-    queryFn: () => api.get<{ campanha: Campanha; contatos: ContatoDaCampanha[] }>(`/campanhas/${id}`),
+    queryFn: () =>
+      api.get<{
+        campanha: Campanha;
+        contatos: ContatoDaCampanha[];
+        /**
+         * Horários das últimas mensagens, do mais novo para o mais antigo.
+         *
+         * Opcional porque painel e API sobem separado — a tela nova conversa
+         * com o servidor antigo por alguns minutos, e um `undefined` aqui não
+         * pode derrubar a tela inteira da campanha por causa do contador de
+         * ritmo.
+         */
+        ultimosEnvios?: string[];
+      }>(`/campanhas/${id}`),
     enabled: Boolean(id),
     // Campanha em andamento muda sozinha; a tela acompanha sem F5.
     refetchInterval: (c) => (c.state.data?.campanha.status === "em_andamento" ? 10_000 : false),

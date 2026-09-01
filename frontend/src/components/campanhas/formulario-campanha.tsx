@@ -13,6 +13,7 @@ import { cn, formatarNumero } from "@/lib/formato";
 import { ErroApi } from "@/lib/api";
 import { useCriarCampanha } from "@/hooks/consultas";
 import {
+  cadenciaDosDias,
   contatosPorDia,
   HORA_PADRAO_DO_DIA,
   paraValorLocal,
@@ -187,7 +188,8 @@ export function FormularioCampanha({
                   descricao="Sorteado a cada contato da fila."
                   valor={estado.intervaloEntreContatos}
                   aoMudar={(valor) => despachar({ tipo: "intervaloContatos", valor })}
-                  automatico={estado.cadenciaAutomatica}
+                  sugestao={cadenciaDosDias(estado.dias)}
+                  seguindoSugestao={estado.cadenciaAutomatica}
                   aoMudarAutomatico={(valor) => despachar({ tipo: "cadenciaAutomatica", valor })}
                 />
                 <ControleIntervalo
@@ -291,6 +293,16 @@ function AgendamentoEnvio({
   const minimo = React.useMemo(() => paraValorLocal(new Date(Date.now() + 5 * 60_000)), []);
   const porDia = contatosPorDia(dias);
 
+  /*
+   * "Dia" só enquanto cada lote é mesmo um dia diferente.
+   *
+   * Com dois lotes no mesmo dia, chamar o segundo de "Dia 2" seria mentira na
+   * tela — e mentira do tipo que faz o operador procurar um erro que não
+   * existe.
+   */
+  const datasDistintas = new Set(dias.map((d) => d.agendadaPara?.slice(0, 10))).size;
+  const rotulo = datasDistintas === dias.length ? "Dia" : "Lote";
+
   /** Primeira data possível: 10h do próximo dia que não seja domingo. */
   function primeiraData(): string {
     const d = proximoDiaDeDisparo(new Date());
@@ -330,28 +342,47 @@ function AgendamentoEnvio({
             agendado={agendado}
             minimo={minimo}
             podeRemover={dias.length > 1}
+            rotulo={rotulo}
             despachar={despachar}
           />
         ))}
       </ul>
 
       {agendado ? (
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <Botao
             tamanho="sm"
             variante="secundario"
             onClick={() => despachar({ tipo: "adicionarDia" })}
-            // Trinta dias é o teto do schema. Chegar nele é sinal de que a
-            // lista deveria ser outra campanha, não mais um dia nesta.
+            // Trinta lotes é o teto do schema. Chegar nele é sinal de que a
+            // lista deveria ser outra campanha, não mais um lote nesta.
             disabled={dias.length >= 30}
           >
             <Plus aria-hidden className="size-3.5" />
-            Adicionar dia
+            Próximo dia
+          </Botao>
+
+          {/*
+            Dois lotes no mesmo dia.
+
+            Existe porque sem ele a única saída era reescrever a data inteira
+            do lote novo à mão, e num `datetime-local` isso é chato o bastante
+            para parecer impossível. É também o caminho de quem só quer TESTAR
+            — duas levas com minutos de diferença, sem esperar até amanhã.
+          */}
+          <Botao
+            tamanho="sm"
+            variante="fantasma"
+            onClick={() => despachar({ tipo: "adicionarDia", mesmoDia: true })}
+            disabled={dias.length >= 30}
+          >
+            <Plus aria-hidden className="size-3.5" />
+            Mesmo dia
           </Botao>
 
           {dias.length > 1 ? (
             <span className="text-xs text-tinta-3">
-              Cada dia começa no horário marcado. Domingo é pulado.
+              Cada lote começa no horário marcado. Domingo é pulado.
             </span>
           ) : null}
         </div>
@@ -369,6 +400,7 @@ function BlocoDoDia({
   agendado,
   minimo,
   podeRemover,
+  rotulo,
   despachar,
 }: {
   dia: DiaDeDisparo;
@@ -378,6 +410,7 @@ function BlocoDoDia({
   agendado: boolean;
   minimo: string;
   podeRemover: boolean;
+  rotulo: string;
   despachar: React.Dispatch<AcaoCampanha>;
 }) {
   const horas = duracaoEstimadaSegundos(contatos, faixa) / 3600;
@@ -387,7 +420,7 @@ function BlocoDoDia({
     <li className="rounded-lg border border-borda-forte bg-superficie-2 p-3.5">
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <span className="text-xs font-medium text-tinta">
-          {agendado ? `Dia ${indice + 1}` : "Contatos"}
+          {agendado ? `${rotulo} ${indice + 1}` : "Contatos"}
         </span>
 
         {agendado ? (
