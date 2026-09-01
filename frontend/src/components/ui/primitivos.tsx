@@ -16,8 +16,14 @@ export function Card({ className, ...props }: React.ComponentProps<"div">) {
         sobre fundo quase preto não aparece, e realce branco sobre fundo branco
         também não — são efeitos diferentes para a mesma peça.
 
-        `shadow-[var(...)]` e não um `shadow-card` do `@theme`: o Tailwind
-        resolveria a variável ao gerar a classe, congelando o valor do claro.
+        Valor arbitrário apontando para a variável, e não um `shadow-card` vindo
+        do `@theme`: o Tailwind RESOLVE os valores de `--shadow-*` ao gerar a
+        classe, e o utilitário sairia com o valor do tema claro escrito dentro
+        dele — a troca de tema não o alcançaria.
+
+        E não escreva um nome de classe de exemplo em comentário: o Tailwind
+        varre o texto bruto do arquivo, não a árvore sintática, e gera CSS a
+        partir do que parece classe mesmo aqui dentro.
       */
       className={cn(
         "rounded-card border border-borda bg-superficie shadow-[var(--shadow-card)]",
