@@ -10,9 +10,17 @@ import { cn } from "@/lib/formato";
 export function Card({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
+      /*
+        A sombra é variável (`--shadow-card`) e não literal: no tema claro ela é
+        elevação, no escuro é um filete de luz na borda de cima. Sombra escura
+        sobre fundo quase preto não aparece, e realce branco sobre fundo branco
+        também não — são efeitos diferentes para a mesma peça.
+
+        `shadow-[var(...)]` e não um `shadow-card` do `@theme`: o Tailwind
+        resolveria a variável ao gerar a classe, congelando o valor do claro.
+      */
       className={cn(
-        "rounded-card border border-borda bg-superficie",
-        "shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset]",
+        "rounded-card border border-borda bg-superficie shadow-[var(--shadow-card)]",
         className,
       )}
       {...props}

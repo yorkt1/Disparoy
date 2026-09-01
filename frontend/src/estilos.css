@@ -1,19 +1,96 @@
 @import "tailwindcss";
 
 /* --------------------------------------------------------------------------
-   Tema escuro — único tema do painel, conforme especificação.
-   As cores de série do gráfico vêm de uma rampa sequencial validada para a
-   superfície escura (#1a1a19); status usa a paleta reservada.
+   Dois temas, um conjunto de tokens.
+
+   O tema CLARO é o padrão e mora no `@theme`; o escuro só redefine as mesmas
+   variáveis em `[data-tema="escuro"]`. Nessa ordem de propósito: o `@theme` é
+   o que vale quando nada foi escolhido, e o padrão pedido é o claro. Se o
+   escuro estivesse no `@theme`, todo carregamento começaria escuro e clarearia
+   depois que o JavaScript rodasse.
+
+   Nenhuma tela referencia cor literal — só estes nomes. É o que permite trocar
+   de tema mexendo em um arquivo, e é por isso que hex solto em componente é
+   proibido no repositório.
    -------------------------------------------------------------------------- */
 @theme {
+  --color-plano: #f5f5f2;
+  --color-superficie: #ffffff;
+  --color-superficie-2: #f2f2ee;
+  --color-superficie-3: #e8e8e2;
+  --color-borda: #e3e3dc;
+  --color-borda-forte: #d2d2c9;
+  /* Realce de borda no hover. Era literal em quatro arquivos; um token evita
+     que "a borda acende" signifique tons diferentes conforme o componente. */
+  --color-borda-hover: #b4b4a9;
+
+  --color-tinta: #1a1a19;
+  --color-tinta-2: #55534d;
+  --color-tinta-3: #77746c;
+
+  /*
+   * A marca escurece no tema claro em vez de repetir o azul do escuro.
+   *
+   * `bg-marca text-white` é o botão primário: com o #3987e5 do tema escuro o
+   * texto branco fica em 3,7:1 sobre o botão, abaixo dos 4,5:1. O azul daqui
+   * passa, e continua sendo o mesmo azul de marca, só mais fundo.
+   */
+  --color-marca: #1f6fd6;
+  --color-marca-forte: #175bb5;
+  --color-marca-suave: #114a97;
+  /* `marca-tenue` é sempre TEXTO sobre superfície. No escuro é um azul claro;
+     aqui tem de ser o oposto, ou some no branco. */
+  --color-marca-tenue: #1a5cb5;
+
+  --color-bom: #0b7d13;
+  --color-aviso: #98680a;
+  --color-serio: #b45a2e;
+  --color-critico: #c62f2f;
+
+  /* Rampa ordinal do funil (enviada -> entregue -> lida), agora claro sobre
+     fundo claro: a primeira faixa é a mais clara que ainda mantém 3:1 contra
+     a trilha da barra (`superficie-3`). */
+  --color-serie-1: #4a86d4;
+  --color-serie-2: #2461ac;
+  --color-serie-3: #123f7d;
+  --color-serie-falha: #c62f2f;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --radius-card: 0.75rem;
+}
+
+:root {
+  color-scheme: light;
+
+  /*
+   * Sombra do card: no claro é elevação, no escuro um filete de luz na borda
+   * de cima (sombra escura não aparece sobre fundo quase preto).
+   *
+   * Fora do `@theme` de propósito. O Tailwind RESOLVE os valores de
+   * `--shadow-*` na hora de gerar o utilitário — `shadow-card` sairia com o
+   * valor claro escrito dentro da classe, e a troca de tema não o alcançaria.
+   * Como variável comum, o `shadow-[var(--shadow-card)]` do `Card` continua
+   * apontando para cá e muda junto com o tema.
+   */
+  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+/*
+ * Tema escuro — o que era o único tema do painel.
+ *
+ * O atributo é escrito por `public/tema.js` antes do primeiro paint e trocado
+ * por `lib/tema.ts` quando o operador escolhe nas configurações.
+ */
+:root[data-tema="escuro"] {
+  color-scheme: dark;
+
   --color-plano: #0d0d0d;
   --color-superficie: #1a1a19;
   --color-superficie-2: #212120;
   --color-superficie-3: #2a2a28;
   --color-borda: #2c2c2a;
   --color-borda-forte: #383835;
-  /* Realce de borda no hover. Era literal em quatro arquivos; um token evita
-     que "a borda acende" signifique tons diferentes conforme o componente. */
   --color-borda-hover: #4a4a46;
 
   --color-tinta: #ffffff;
@@ -35,13 +112,7 @@
   --color-serie-3: #1c5cab;
   --color-serie-falha: #d03b3b;
 
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-
-  --radius-card: 0.75rem;
-}
-
-:root {
-  color-scheme: dark;
+  --shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.03) inset;
 }
 
 html,
@@ -79,13 +150,17 @@ body {
   border-radius: 5px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #4a4a46;
+  background: var(--color-borda-hover);
 }
 
-/* O seletor nativo de data/hora renderiza escuro no Chromium com isto. */
 input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-  filter: invert(0.7);
   cursor: pointer;
+}
+
+/* O seletor nativo de data/hora renderiza escuro no Chromium com isto — e só
+   faz sentido no tema escuro: no claro o ícone invertido sumiria no branco. */
+:root[data-tema="escuro"] input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
 }
 
 @media (prefers-reduced-motion: reduce) {

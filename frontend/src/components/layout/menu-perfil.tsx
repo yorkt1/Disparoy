@@ -89,17 +89,21 @@ export function MenuPerfil({ usuario }: { usuario: PerfilSessao }) {
               <UserRound aria-hidden className="size-4" />
               Meu perfil
             </Link>
-            {usuario.papel === "admin" ? (
-              <Link
-                to="/configuracoes"
-                role="menuitem"
-                onClick={() => setAberto(false)}
-                className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-tinta-2 hover:bg-superficie-2 hover:text-tinta"
-              >
-                <Settings aria-hidden className="size-4" />
-                Usuários e acessos
-              </Link>
-            ) : null}
+            {/*
+              Aberto a todo mundo, e não só a admin como antes: a tela deixou de
+              ser só "Usuários e acessos" e passou a ter a escolha de tema, que
+              é de cada pessoa. Ela continua mostrando os acessos apenas para
+              quem administra.
+            */}
+            <Link
+              to="/configuracoes"
+              role="menuitem"
+              onClick={() => setAberto(false)}
+              className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-tinta-2 hover:bg-superficie-2 hover:text-tinta"
+            >
+              <Settings aria-hidden className="size-4" />
+              Configurações
+            </Link>
           </div>
 
           <div className="border-t border-borda py-1">

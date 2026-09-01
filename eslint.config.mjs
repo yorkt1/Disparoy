@@ -97,6 +97,18 @@ export default tseslint.config(
     },
   },
 
+  /*
+   * `frontend/public/` é servido como está, fora do bundle e fora do TypeScript.
+   * Precisa de config própria por dois motivos: os globais do navegador não
+   * chegam aqui pela regra de `**\/*.{ts,tsx}`, e o `catch` vazio é o padrão
+   * certo quando o `localStorage` lança em aba anônima.
+   */
+  {
+    files: ["frontend/public/**/*.js"],
+    languageOptions: { ecmaVersion: 2020, globals: globals.browser },
+    rules: { "no-empty": "off" },
+  },
+
   // Testes encenam entradas malformadas de propósito; exigir tipagem exata
   // neles obrigaria a duplicar os tipos do domínio só para descrever o que é
   // inválido.

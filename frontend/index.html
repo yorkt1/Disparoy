@@ -1,17 +1,28 @@
 <!doctype html>
-<html lang="pt-BR" style="color-scheme: dark">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0d0d0d" />
+    <meta name="theme-color" content="#f5f5f2" />
     <title>DisparoY — Disparo de mensagens via WhatsApp</title>
-    <!-- Pinta o fundo antes do React montar, senão pisca branco no carregamento. -->
+    <!-- Bloqueante e antes do CSS: escreve `data-tema` no <html> para o painel
+         não abrir claro e escurecer depois. Ver public/tema.js. -->
+    <script src="/tema.js"></script>
+    <!-- Pinta o fundo antes do React montar, senão pisca em branco (ou em preto,
+         no tema escuro) durante o carregamento. Os valores acompanham
+         `--color-plano` e `--color-tinta` de estilos.css. -->
     <style>
       html,
       body,
       #raiz {
         margin: 0;
         min-height: 100%;
+        background: #f5f5f2;
+        color: #1a1a19;
+      }
+      html[data-tema="escuro"],
+      html[data-tema="escuro"] body,
+      html[data-tema="escuro"] #raiz {
         background: #0d0d0d;
         color: #fff;
       }

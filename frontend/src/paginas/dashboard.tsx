@@ -15,13 +15,11 @@ import { Carregando, ErroCarregamento, Esqueleto } from "@/components/ui/estados
 import { CartaoMetrica } from "@/components/dashboard/cartao-metrica";
 import { GraficoStatus } from "@/components/charts/grafico-status";
 import { TabelaUltimasCampanhas } from "@/components/dashboard/tabela-ultimas-campanhas";
-import { IndicadoresSaude } from "@/components/dashboard/indicadores-saude";
 import {
   temCampanhaAndando,
   useCampanhas,
   useCanais,
   useMetricas,
-  useSaudeApi,
   useSessao,
 } from "@/hooks/consultas";
 
@@ -29,7 +27,6 @@ export function PaginaDashboard() {
   const sessao = useSessao();
   const canais = useCanais();
   const campanhas = useCampanhas({ porPagina: 8 });
-  const saudeApi = useSaudeApi();
   // As métricas só se atualizam sozinhas quando há disparo acontecendo — quem
   // sabe disso é a lista de campanhas, carregada logo acima.
   const metricas = useMetricas(temCampanhaAndando(campanhas.data));
@@ -80,13 +77,6 @@ export function PaginaDashboard() {
         </div>
       ) : null}
 
-      <IndicadoresSaude
-        apiSaude={saudeApi}
-        sessao={sessao}
-        canais={canais.data ?? []}
-        campanhaAndando={temCampanhaAndando(campanhas.data)}
-      />
-
       {metricas.isLoading ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }, (_, i) => (
@@ -121,7 +111,7 @@ export function PaginaDashboard() {
         <Card className="overflow-hidden">
           <CardCabecalho
             titulo="Últimas campanhas"
-            descricao="Clique no nome para abrir os detalhes"
+            descricao="Abra os detalhes para acompanhar contato por contato"
             acao={
               <BotaoLink to="/campanhas" tamanho="sm" variante="fantasma">
                 Ver todas

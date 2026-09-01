@@ -59,7 +59,16 @@ A distinção que mais importa: `canal` significa "o WhatsApp do cliente caiu,
 reconecte" e `infra` significa "o problema é nosso, não faça nada". Se essas
 duas aparecerem iguais na tela, o operador vai concluir que o sistema quebrou.
 
-**Cor sempre por variável CSS**, nunca hex literal — o painel tem modo escuro.
+**Cor sempre por variável CSS**, nunca hex literal — o painel tem dois temas. O
+claro é o padrão e mora no `@theme` de `estilos.css`; o escuro só redefine as
+mesmas variáveis em `:root[data-tema="escuro"]`. Hex literal em componente muda
+só em um dos dois, e o bug aparece na tela de quem escolheu o outro.
+
+O atributo `data-tema` é escrito por `frontend/public/tema.js`, carregado de
+forma bloqueante no `index.html`: fora do bundle porque a CSP traz
+`script-src 'self'` sem `unsafe-inline`, e antes do React porque quem escolheu
+o escuro veria um lampejo branco a cada abertura. A escolha fica no
+`localStorage` — é preferência de aparelho, não da conta.
 
 **Estado de servidor é React Query**, em `hooks/consultas.ts`. Não duplique em
 `useState`.

@@ -1,7 +1,8 @@
 
 import { Link } from "react-router-dom";
-import { ArrowUpRight, Megaphone } from "lucide-react";
+import { Megaphone, SquareArrowOutUpRight } from "lucide-react";
 import { Tabela, type Coluna } from "@/components/ui/tabela";
+import { BotaoLink } from "@/components/ui/botao";
 import { BarraProgresso, EstadoVazio } from "@/components/ui/primitivos";
 import { SeloCampanha } from "@/components/campanhas/selo-status";
 import type { ResumoCampanha } from "@disparoy/dominio";
@@ -27,13 +28,9 @@ export function TabelaUltimasCampanhas({
       celula: (c) => (
         <Link
           to={`/campanhas/${c.id}`}
-          className="group inline-flex max-w-72 items-center gap-1.5 font-medium text-tinta hover:text-marca-tenue"
+          className="inline-block max-w-72 truncate font-medium text-tinta underline decoration-transparent underline-offset-4 transition-colors hover:text-marca-tenue hover:decoration-current"
         >
-          <span className="truncate">{c.nome}</span>
-          <ArrowUpRight
-            aria-hidden
-            className="size-3.5 shrink-0 text-tinta-3 transition-colors group-hover:text-marca-tenue"
-          />
+          {c.nome}
         </Link>
       ),
     },
@@ -87,6 +84,34 @@ export function TabelaUltimasCampanhas({
         <span className="tabular whitespace-nowrap text-tinta-3">
           {formatarData(c.iniciadaEm ?? c.agendadaPara ?? c.criadaEm)}
         </span>
+      ),
+    },
+    {
+      /*
+       * Um botão de verdade para abrir a campanha.
+       *
+       * O caminho até os detalhes era o nome da campanha, com uma setinha de
+       * 14px ao lado. Nome de item em tabela não parece link — parece rótulo —
+       * e a seta só aparecia depois de reparar nela. O resultado é que a tela
+       * de detalhes, que é onde se acompanha contato por contato e se pausa o
+       * disparo, ficava escondida atrás de um clique que ninguém adivinha.
+       *
+       * O nome continua clicável para quem já conhece o caminho; o botão é
+       * para quem não conhece.
+       */
+      chave: "acoes",
+      titulo: "Ações",
+      alinhamento: "direita",
+      celula: (c) => (
+        <BotaoLink
+          to={`/campanhas/${c.id}`}
+          tamanho="sm"
+          variante="secundario"
+          aria-label={`Ver detalhes da campanha ${c.nome}`}
+        >
+          <SquareArrowOutUpRight aria-hidden className="size-3.5" />
+          Ver detalhes
+        </BotaoLink>
       ),
     },
   ];

@@ -25,6 +25,7 @@ import { Tabela, type Coluna } from "@/components/ui/tabela";
 import { SeloOrigem } from "@/components/avisos/selo-origem";
 import { CartaoAviso } from "@/components/avisos/cartao-aviso";
 import { FaixaDisparoParado } from "@/components/avisos/faixa-disparo-parado";
+import { IndicadoresSaude } from "@/components/diagnostico/indicadores-saude";
 import { TabelaLogs } from "@/components/logs/tabela-logs";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -90,6 +91,11 @@ export function PaginaDiagnostico() {
         titulo="Diagnóstico"
         descricao="O que está quebrado agora, o que vem quebrando, e quem mexeu em quê."
       />
+
+      {/* Antes das abas: é a resposta mais curta para "o sistema está de pé?",
+          e o contexto que muda a leitura do resto — gateway fora do ar explica
+          uma coluna inteira de falhas de uma vez. */}
+      <IndicadoresSaude />
 
       <div className="mb-5 flex flex-wrap gap-1.5" role="tablist" aria-label="Seções">
         <BotaoAba ativa={aba === "avisos"} onClick={() => setAba("avisos")} contador={naoLidos}>

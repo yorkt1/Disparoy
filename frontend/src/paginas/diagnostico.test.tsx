@@ -52,6 +52,13 @@ vi.mock("@/components/logs/tabela-logs", () => ({
   TabelaLogs: () => <div>tabela-de-logs</div>,
 }));
 
+// A faixa de saúde também busca os próprios dados — por quatro consultas que
+// nada têm a ver com o que esta suíte protege. Sem o mock, elas cairiam no
+// módulo de consultas encenado acima e viriam `undefined`.
+vi.mock("@/components/diagnostico/indicadores-saude", () => ({
+  IndicadoresSaude: () => <div>indicadores-de-saude</div>,
+}));
+
 import { PaginaDiagnostico } from "./diagnostico";
 
 function falha(codigo: string, total: number): ResumoFalha {
