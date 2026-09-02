@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Papel, Usuario } from "@disparoy/dominio";
+import type { Canal, Papel, Usuario } from "@disparoy/dominio";
 import { api } from "@/lib/api";
 import { entrarComoOutro } from "@/lib/sessao";
 import { chaves, useInvalidar } from "./nucleo";
@@ -38,7 +38,20 @@ export interface EmpresaResumo {
   ativa: boolean;
   criadaEm: string;
   acessos: number;
-  canais: number;
+  /**
+   * Os canais DELA — não a contagem.
+   *
+   * É o que liga canal e cliente nas duas direções, e as duas fazem falta no
+   * suporte: em Empresas, "o WhatsApp da Empreende está de pé?"; em Canais, "de
+   * quem é este número?". A conta global enxerga os canais de todo mundo numa
+   * lista só, e sem isto não havia como saber de quem era cada linha sem entrar
+   * na conta do cliente.
+   *
+   * Vem o `Canal` inteiro porque o selo sai de `apresentarCanal()`, que precisa
+   * de `status`, `numero` e `estadoVerificadoEm` juntos para decidir o que a
+   * tela pode afirmar.
+   */
+  canais: Canal[];
 }
 
 export function useEmpresas(habilitado = true) {
@@ -46,6 +59,19 @@ export function useEmpresas(habilitado = true) {
     queryKey: ["empresas"],
     queryFn: () => api.get<{ empresas: EmpresaResumo[] }>("/empresas").then((r) => r.empresas),
     enabled: habilitado,
+    /*
+     * A resposta virou estado de conexão, e estado de conexão envelhece.
+     *
+     * Enquanto era só nome e contagem, buscar uma vez bastava — nada ali mudava
+     * sozinho. Agora a tela afirma "o WhatsApp deste cliente está de pé", e uma
+     * afirmação dessas parada na tela é a mesma coisa que o painel fazia antes
+     * de `apresentarCanal()` existir. Um minuto, e não os 20 s de `/canais`,
+     * porque aqui ninguém está acompanhando disparo: está conferindo cliente.
+     *
+     * O React Query não dispara isto com a aba fora de foco, então só roda
+     * enquanto alguém está de fato olhando.
+     */
+    refetchInterval: 60_000,
   });
 }
 

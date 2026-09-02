@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Canal } from "@disparoy/dominio";
 import { ErroApi } from "@/lib/api";
@@ -27,6 +27,8 @@ const { hooks, mostrar } = vi.hoisted(() => ({
     reconectar: vi.fn(),
     incidentes: vi.fn(),
     ehAdmin: vi.fn(),
+    ehContaGlobal: vi.fn(),
+    empresas: vi.fn(),
     membros: vi.fn(),
     definirMembro: vi.fn(),
     removerMembro: vi.fn(),
@@ -42,6 +44,8 @@ vi.mock("@/hooks/consultas", () => ({
   useReconectarCanal: () => hooks.reconectar(),
   useIncidentesAbertos: () => hooks.incidentes(),
   useEhAdmin: () => hooks.ehAdmin(),
+  useEhContaGlobal: () => hooks.ehContaGlobal(),
+  useEmpresas: (habilitado?: boolean) => hooks.empresas(habilitado),
   useMembrosCanal: (id: string | null) => hooks.membros(id),
   useDefinirMembro: () => hooks.definirMembro(),
   useRemoverMembro: () => hooks.removerMembro(),
@@ -79,9 +83,42 @@ function canal(patch: Partial<Canal> = {}): Canal {
  */
 function comoOperador() {
   hooks.ehAdmin.mockReturnValue(false);
+  hooks.ehContaGlobal.mockReturnValue(false);
+  hooks.empresas.mockReturnValue({ data: undefined });
   hooks.membros.mockReturnValue({ data: [], isLoading: false });
   hooks.definirMembro.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
   hooks.removerMembro.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+}
+
+/**
+ * A conta de administração, com duas empresas e um canal em cada.
+ *
+ * É o único acesso que vê canais de empresas diferentes na mesma lista — e
+ * portanto o único para o qual a coluna "Conta" faz sentido.
+ */
+function comoContaGlobal() {
+  hooks.ehAdmin.mockReturnValue(true);
+  hooks.ehContaGlobal.mockReturnValue(true);
+  hooks.empresas.mockReturnValue({
+    data: [
+      {
+        id: "empresa-a",
+        nome: "Empreende Brazil",
+        ativa: true,
+        criadaEm: "2026-01-01T00:00:00.000Z",
+        acessos: 1,
+        canais: [canal()],
+      },
+      {
+        id: "empresa-b",
+        nome: "Mollina Doces",
+        ativa: true,
+        criadaEm: "2026-01-01T00:00:00.000Z",
+        acessos: 1,
+        canais: [canal({ id: "canal-2", nome: "Suporte", numero: "5548999998888" })],
+      },
+    ],
+  });
 }
 
 /** Sem incidente aberto — o estado normal de quase todo canal. */
@@ -117,7 +154,20 @@ function comVinculos(campanhas: { id: string; nome: string; status: string }[], 
 
 beforeEach(() => {
   vi.clearAllMocks();
-  hooks.verificar.mockReturnValue({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false });
+  /*
+   * `mutateAsync` PRECISA devolver promessa.
+   *
+   * `useVerificacaoAutomatica` faz `verificar.current(id).catch(...)` — com um
+   * `vi.fn()` cru, que devolve `undefined`, isso virava quatro
+   * `UnhandledRejection` por execução. Os testes passavam e a suíte saía com
+   * código 1, o que deixava o passo de testes do CI vermelho sem nenhum teste
+   * vermelho para explicar.
+   */
+  hooks.verificar.mockReturnValue({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn().mockResolvedValue(undefined),
+    isPending: false,
+  });
   semIncidentes();
   comoOperador();
   exclusaoOk();
@@ -490,5 +540,71 @@ describe("ListaCanais — acessos do canal", () => {
     expect(
       screen.getByRole("button", { name: /Remover o acesso de Colega/ }),
     ).toBeInTheDocument();
+  });
+});
+
+/**
+ * De quem é cada canal.
+ *
+ * A conta de administração vê os canais de TODAS as empresas na mesma lista, e
+ * até aqui a lista não dizia de quem era nenhum — descobrir a qual cliente um
+ * número pertencia exigia entrar na conta dele. O risco que estes testes
+ * guardam não é a coluna sumir: é ela aparecer com o nome errado, que é pior
+ * do que não aparecer.
+ */
+describe("ListaCanais — a conta dona do canal", () => {
+  it("a conta de administração vê a empresa de cada canal", () => {
+    comoContaGlobal();
+    render(<ListaCanais canais={[canal(), canal({ id: "canal-2", nome: "Suporte" })]} />);
+
+    // Dentro da TABELA, e não da tela: o filtro por conta repete os mesmos
+    // nomes nas opções do `select`, e um `getByText` solto passaria mesmo com
+    // a coluna vazia.
+    const tabela = within(screen.getByRole("table"));
+    expect(screen.getByRole("columnheader", { name: "Conta" })).toBeInTheDocument();
+    expect(tabela.getByText("Empreende Brazil")).toBeInTheDocument();
+    expect(tabela.getByText("Mollina Doces")).toBeInTheDocument();
+  });
+
+  it("quem pertence a uma empresa não ganha a coluna", () => {
+    // Para o admin DE UMA empresa todo canal é dela: a coluna seria uma
+    // constante repetida em toda linha, e a consulta a `/empresas` que a
+    // alimenta devolveria 400 para ele.
+    render(<ListaCanais canais={[canal()]} />);
+    expect(screen.queryByRole("columnheader", { name: "Conta" })).toBeNull();
+  });
+
+  it("não chuta empresa para canal que ainda não está na lista", () => {
+    // Acontece entre criar o canal e `/empresas` atualizar. Escrever o nome de
+    // um cliente ao lado do número de outro é exatamente o erro que a coluna
+    // existe para evitar — o traço admite o que não se sabe.
+    comoContaGlobal();
+    render(<ListaCanais canais={[canal({ id: "canal-recem-criado", nome: "Novo" })]} />);
+
+    const tabela = within(screen.getByRole("table"));
+    expect(tabela.queryByText("Empreende Brazil")).toBeNull();
+    expect(tabela.getByText("—")).toBeInTheDocument();
+  });
+
+  it("o filtro por conta recorta a lista", async () => {
+    comoContaGlobal();
+    render(<ListaCanais canais={[canal(), canal({ id: "canal-2", nome: "Suporte" })]} />);
+
+    await userEvent.selectOptions(screen.getByLabelText("Conta"), "empresa-b");
+
+    expect(screen.getByText("Suporte")).toBeInTheDocument();
+    expect(screen.queryByText("Comercial")).toBeNull();
+  });
+
+  it("buscar pelo nome do cliente acha o canal dele", async () => {
+    // O placeholder promete busca "por nome, número ou empresa" desde antes de
+    // a empresa existir no texto pesquisável — prometia e não entregava.
+    comoContaGlobal();
+    render(<ListaCanais canais={[canal(), canal({ id: "canal-2", nome: "Suporte" })]} />);
+
+    await userEvent.type(screen.getByRole("searchbox"), "Mollina");
+
+    expect(screen.getByText("Suporte")).toBeInTheDocument();
+    expect(screen.queryByText("Comercial")).toBeNull();
   });
 });

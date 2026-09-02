@@ -6,8 +6,10 @@ import { Modal } from "@/components/ui/modal";
 import { Badge, Card, CardCabecalho, EstadoVazio, Separador } from "@/components/ui/primitivos";
 import { Carregando, ErroCarregamento } from "@/components/ui/estados";
 import { useToast } from "@/components/ui/toast";
+import { SeloCanal } from "@/components/campanhas/selo-status";
+import { apresentarCanal, type Canal } from "@disparoy/dominio";
 import { mensagemDe } from "@/lib/api";
-import { formatarData } from "@/lib/formato";
+import { formatarData, formatarTelefone } from "@/lib/formato";
 import {
   useCriarEmpresa,
   useCriarUsuario,
@@ -65,27 +67,32 @@ export function GestaoEmpresas() {
         {empresas.data && empresas.data.length > 0 && (
           <ul className="divide-y divide-borda">
             {empresas.data.map((e) => (
-              <li key={e.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-tinta">{e.nome}</p>
-                  <p className="mt-0.5 text-xs text-tinta-3">
-                    criada em {formatarData(e.criadaEm)}
-                  </p>
+              <li key={e.id} className="px-5 py-3.5">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-tinta">{e.nome}</p>
+                    <p className="mt-0.5 text-xs text-tinta-3">
+                      criada em {formatarData(e.criadaEm)}
+                    </p>
+                  </div>
+
+                  {/* As duas perguntas que importam de relance: já tem quem
+                      entre, e já tem número conectado? */}
+                  <Badge
+                    tom={e.acessos > 0 ? "neutro" : "aviso"}
+                    icone={<UserRound className="size-3.5" />}
+                  >
+                    {e.acessos} {e.acessos === 1 ? "acesso" : "acessos"}
+                  </Badge>
+                  <SeloConexaoDaEmpresa canais={e.canais} />
+
+                  <Botao variante="secundario" tamanho="sm" onClick={() => setCriandoAcesso(e)}>
+                    <KeyRound aria-hidden className="size-3.5" />
+                    Criar acesso
+                  </Botao>
                 </div>
 
-                {/* As duas perguntas que importam de relance: já tem quem
-                    entre, e já tem número conectado? */}
-                <Badge tom={e.acessos > 0 ? "neutro" : "aviso"} icone={<UserRound className="size-3.5" />}>
-                  {e.acessos} {e.acessos === 1 ? "acesso" : "acessos"}
-                </Badge>
-                <Badge tom={e.canais > 0 ? "bom" : "neutro"} icone={<Smartphone className="size-3.5" />}>
-                  {e.canais} {e.canais === 1 ? "canal" : "canais"}
-                </Badge>
-
-                <Botao variante="secundario" tamanho="sm" onClick={() => setCriandoAcesso(e)}>
-                  <KeyRound aria-hidden className="size-3.5" />
-                  Criar acesso
-                </Botao>
+                <CanaisDaEmpresa canais={e.canais} />
               </li>
             ))}
           </ul>
@@ -95,6 +102,73 @@ export function GestaoEmpresas() {
       <ModalNovaEmpresa aberto={criandoEmpresa} aoFechar={() => setCriandoEmpresa(false)} />
       <ModalNovoAcesso empresa={criandoAcesso} aoFechar={() => setCriandoAcesso(null)} />
     </>
+  );
+}
+
+/**
+ * Quantos números da empresa estão de pé — o resumo de uma linha.
+ *
+ * Antes o selo contava canais CADASTRADOS. É outra pergunta: um cliente com
+ * dois canais e nenhum conectado aparecia em verde, exatamente como o que está
+ * disparando. Quem abre esta tela quer saber se o WhatsApp do cliente caiu.
+ *
+ * O tom `aviso` fica reservado para "tem canal e nenhum funciona", que é o
+ * único caso em que alguém precisa agir; empresa recém-criada, ainda sem canal,
+ * é estado normal e fica em neutro.
+ */
+function SeloConexaoDaEmpresa({ canais }: { canais: Canal[] }) {
+  const conectados = canais.filter((c) => apresentarCanal(c).status === "conectado").length;
+
+  if (canais.length === 0) {
+    return (
+      <Badge tom="neutro" icone={<Smartphone className="size-3.5" />}>
+        sem canal
+      </Badge>
+    );
+  }
+
+  const texto =
+    conectados === canais.length
+      ? `${conectados} ${conectados === 1 ? "conectado" : "conectados"}`
+      : `${conectados} de ${canais.length} ${conectados === 1 ? "conectado" : "conectados"}`;
+
+  return (
+    <Badge tom={conectados > 0 ? "bom" : "aviso"} icone={<Smartphone className="size-3.5" />}>
+      {texto}
+    </Badge>
+  );
+}
+
+/**
+ * Os números da empresa, um por linha.
+ *
+ * Existe para responder "o cliente X está com o WhatsApp conectado?" sem entrar
+ * na conta dele. O selo sai de `apresentarCanal()`, e não de `canal.status`: o
+ * status gravado é cache do webhook, e afirmar "Conectado" a partir dele é o
+ * defeito que a tela de Canais já corrigiu — repeti-lo aqui faria a
+ * administração ser a única tela do painel que ainda mente.
+ */
+function CanaisDaEmpresa({ canais }: { canais: Canal[] }) {
+  if (canais.length === 0) return null;
+
+  return (
+    <ul className="mt-2.5 ml-1 space-y-1.5 border-l-2 border-borda pl-3">
+      {canais.map((c) => {
+        const a = apresentarCanal(c);
+        return (
+          <li key={c.id} className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <span className="text-xs font-medium text-tinta-2">{c.nome}</span>
+            <span className="tabular text-xs text-tinta-3">
+              {c.numero ? formatarTelefone(c.numero) : "aguardando pareamento"}
+            </span>
+            <SeloCanal status={a.status} confianca={a.confianca} />
+            {/* O detalhe é o que separa "conferi agora" de "não sei desde
+                terça" — sem ele o selo apagado não diz por que está apagado. */}
+            {a.detalhe ? <span className="text-xs text-tinta-3">{a.detalhe}</span> : null}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

@@ -97,7 +97,9 @@ export function useExcluirCanal() {
      */
     mutationFn: (v: { id: string; forcar?: boolean }) =>
       api.delete<{ excluido: string }>(`/canais/${v.id}${v.forcar ? "?forcar=true" : ""}`),
-    onSuccess: () => invalidar("canais"),
+    // Mesma razão de `useCriarCanal`: o canal excluído sumiria da lista de
+    // Canais e continuaria contando como conectado na tela de Empresas.
+    onSuccess: () => invalidar("canais", "empresas"),
   });
 }
 
@@ -124,7 +126,9 @@ export function useCriarCanal() {
       /** Só no método `codigo`: o celular que vai parear. */
       numeroPareamento?: string;
     }) => api.post<Pareamento & { canal: Canal }>("/canais", dados),
-    onSuccess: () => invalidar("canais"),
+    // `empresas` junto: a administração lista os canais de cada cliente, e sem
+    // isto a empresa continuava "sem canal" depois de o cliente conectar um.
+    onSuccess: () => invalidar("canais", "empresas"),
   });
 }
 

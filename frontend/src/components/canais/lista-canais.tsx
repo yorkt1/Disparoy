@@ -24,6 +24,8 @@ import { ModalReconectarCanal } from "./modal-reconectar-canal";
 import { ModalCompartilharCanal } from "./modal-compartilhar-canal";
 import {
   contarContatosDoCanal,
+  useEhContaGlobal,
+  useEmpresas,
   useExcluirCanal,
   useEhAdmin,
   useIncidentesAbertos,
@@ -109,7 +111,31 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
     return mapa;
   }, [incidentes.data]);
 
+  /*
+   * De quem é cada canal — só para a conta de administração.
+   *
+   * Ela é a única que enxerga canais de várias empresas na mesma lista, e até
+   * aqui a lista não dizia de quem era nenhum deles: dez linhas de números
+   * parecidos, e descobrir a qual cliente um número pertencia exigia entrar na
+   * conta dele. Para o admin DE UMA empresa a coluna seria constante, então
+   * ela não aparece — daí `useEhContaGlobal` em vez de `useEhAdmin`.
+   *
+   * O nome vem de `/empresas`, que a API só responde para a conta global — por
+   * isso a consulta fica desabilitada para todo mundo mais, em vez de tomar 400
+   * a cada abertura da tela.
+   */
+  const ehContaGlobal = useEhContaGlobal();
+  const empresas = useEmpresas(ehContaGlobal);
+  const contaDoCanal = React.useMemo(() => {
+    const mapa = new Map<string, { id: string; nome: string }>();
+    for (const e of empresas.data ?? []) {
+      for (const c of e.canais) mapa.set(c.id, { id: e.id, nome: e.nome });
+    }
+    return mapa;
+  }, [empresas.data]);
+
   const [status, setStatus] = React.useState("todos");
+  const [conta, setConta] = React.useState("todas");
   const [conectando, setConectando] = React.useState(false);
   const [reconectando, setReconectando] = React.useState<Canal | null>(null);
   const [extraindo, setExtraindo] = React.useState<string | null>(null);
@@ -125,7 +151,9 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
   useVerificacaoAutomatica(canais);
   const emAcao = exclusao.isPending ? (exclusao.variables?.id ?? null) : null;
 
-    const filtrados = canais.filter((c) => status === "todos" || c.status === status);
+  const filtrados = canais
+    .filter((c) => status === "todos" || c.status === status)
+    .filter((c) => conta === "todas" || contaDoCanal.get(c.id)?.id === conta);
 
   /*
    * `mudarStatus` saiu junto com o botão Desconectar.
@@ -268,6 +296,37 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
         </div>
       ),
     },
+    /*
+     * A conta dona do canal, entre o nome e o número.
+     *
+     * Nessa posição porque a linha passa a se ler como uma frase: qual canal,
+     * de quem, em que número. Depois do número ela viraria detalhe de rodapé —
+     * e é justamente ela que o suporte procura primeiro.
+     */
+    ...(ehContaGlobal
+      ? [
+          {
+            chave: "conta",
+            titulo: "Conta",
+            celula: (c: Canal) => {
+              const dona = contaDoCanal.get(c.id);
+              return dona ? (
+                <span className="text-tinta-2">{dona.nome}</span>
+              ) : (
+                /*
+                 * Traço, e não o nome de uma empresa qualquer.
+                 *
+                 * Acontece na janela entre criar o canal e a lista de empresas
+                 * se atualizar. Chutar aqui seria escrever o nome do cliente
+                 * errado ao lado de um número — exatamente o erro que esta
+                 * coluna existe para evitar.
+                 */
+                <span className="text-xs text-tinta-3">—</span>
+              );
+            },
+          },
+        ]
+      : []),
     {
       chave: "numero",
       titulo: "Número",
@@ -490,20 +549,39 @@ export function ListaCanais({ canais }: { canais: Canal[] }) {
             chaveDe={(c) => c.id}
             porPagina={10}
             buscaPlaceholder="Buscar por nome, número ou empresa…"
-            textoBusca={(c) => `${c.nome} ${c.numero ?? ""}`}
+            // A empresa entra no texto pesquisável: o placeholder já a
+            // prometia, e digitar o nome do cliente não achava nada.
+            textoBusca={(c) => `${c.nome} ${c.numero ?? ""} ${contaDoCanal.get(c.id)?.nome ?? ""}`}
             vazio="Nenhum canal com esse filtro."
             filtros={
-              <FiltroSelecao
-                rotulo="Status"
-                valor={status}
-                aoMudar={setStatus}
-                opcoes={[
-                  { valor: "todos", texto: "Todos" },
-                  { valor: "conectado", texto: "Conectado" },
-                  { valor: "desconectado", texto: "Desconectado" },
-                  { valor: "aguardando_qr", texto: "Aguardando QR" },
-                ]}
-              />
+              <>
+                <FiltroSelecao
+                  rotulo="Status"
+                  valor={status}
+                  aoMudar={setStatus}
+                  opcoes={[
+                    { valor: "todos", texto: "Todos" },
+                    { valor: "conectado", texto: "Conectado" },
+                    { valor: "desconectado", texto: "Desconectado" },
+                    { valor: "aguardando_qr", texto: "Aguardando QR" },
+                  ]}
+                />
+                {/* Só as empresas que TÊM canal: oferecer as outras seria
+                    prometer um recorte que só devolve lista vazia. */}
+                {ehContaGlobal && (
+                  <FiltroSelecao
+                    rotulo="Conta"
+                    valor={conta}
+                    aoMudar={setConta}
+                    opcoes={[
+                      { valor: "todas", texto: "Todas" },
+                      ...(empresas.data ?? [])
+                        .filter((e) => e.canais.length > 0)
+                        .map((e) => ({ valor: e.id, texto: e.nome })),
+                    ]}
+                  />
+                )}
+              </>
             }
           />
         )}
