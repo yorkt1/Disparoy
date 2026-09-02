@@ -57,7 +57,20 @@ export interface EmpresaResumo {
 export function useEmpresas(habilitado = true) {
   return useQuery({
     queryKey: ["empresas"],
-    queryFn: () => api.get<{ empresas: EmpresaResumo[] }>("/empresas").then((r) => r.empresas),
+    /*
+     * `canais` é normalizado para array na entrada, e não em cada tela.
+     *
+     * Os dois repositórios publicam separado: a Vercel sobe o painel em
+     * segundos e o Render leva minutos. Nessa janela o painel novo conversa com
+     * a API antiga, que ainda devolve `canais: 3` — e `canais.filter(...)`
+     * numa contagem derruba a tela de Configurações inteira, justo para a
+     * conta de administração. Um `?? []` aqui é mais barato que a mesma guarda
+     * repetida em cada componente que lê a lista.
+     */
+    queryFn: () =>
+      api.get<{ empresas: EmpresaResumo[] }>("/empresas").then((r) =>
+        r.empresas.map((e) => ({ ...e, canais: Array.isArray(e.canais) ? e.canais : [] })),
+      ),
     enabled: habilitado,
     /*
      * A resposta virou estado de conexão, e estado de conexão envelhece.
